@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/download/public/common/download_item.h"
 #include "gin/handle.h"
@@ -23,7 +24,7 @@ namespace electron::api {
 class DownloadItem : public gin::Wrappable<DownloadItem>,
                      public gin_helper::Pinnable<DownloadItem>,
                      public gin_helper::EventEmitterMixin<DownloadItem>,
-                     public download::DownloadItem::Observer {
+                     private download::DownloadItem::Observer {
  public:
   static gin::Handle<DownloadItem> FromOrCreate(v8::Isolate* isolate,
                                                 download::DownloadItem* item);
@@ -78,9 +79,9 @@ class DownloadItem : public gin::Wrappable<DownloadItem>,
 
   base::FilePath save_path_;
   file_dialog::DialogSettings dialog_options_;
-  download::DownloadItem* download_item_;
+  raw_ptr<download::DownloadItem> download_item_;
 
-  v8::Isolate* isolate_;
+  raw_ptr<v8::Isolate> isolate_;
 
   base::WeakPtrFactory<DownloadItem> weak_factory_{this};
 };

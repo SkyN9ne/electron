@@ -11,9 +11,11 @@
 #include "base/environment.h"
 #include "base/process/launch.h"
 #include "electron/electron_version.h"
+#include "shell/browser/javascript_environment.h"
 #include "shell/browser/native_window.h"
 #include "shell/browser/window_list.h"
 #include "shell/common/application_info.h"
+#include "shell/common/gin_converters/login_item_settings_converter.h"
 #include "shell/common/thread_restrictions.h"
 
 #if BUILDFLAG(IS_LINUX)
@@ -28,7 +30,7 @@ const char kXdgSettingsDefaultSchemeHandler[] = "default-url-scheme-handler";
 
 // The use of the ForTesting flavors is a hack workaround to avoid having to
 // patch these as friends into the associated guard classes.
-class LaunchXdgUtilityScopedAllowBaseSyncPrimitives
+class [[maybe_unused, nodiscard]] LaunchXdgUtilityScopedAllowBaseSyncPrimitives
     : public base::ScopedAllowBaseSyncPrimitivesForTesting {};
 
 bool LaunchXdgUtility(const std::vector<std::string>& argv, int* exit_code) {
@@ -49,7 +51,7 @@ bool LaunchXdgUtility(const std::vector<std::string>& argv, int* exit_code) {
   return process.WaitForExit(exit_code);
 }
 
-absl::optional<std::string> GetXdgAppOutput(
+std::optional<std::string> GetXdgAppOutput(
     const std::vector<std::string>& argv) {
   std::string reply;
   int success_code;
@@ -58,9 +60,9 @@ absl::optional<std::string> GetXdgAppOutput(
                                                &success_code);
 
   if (!ran_ok || success_code != EXIT_SUCCESS)
-    return absl::optional<std::string>();
+    return std::optional<std::string>();
 
-  return absl::make_optional(reply);
+  return std::make_optional(reply);
 }
 
 bool SetDefaultWebClient(const std::string& protocol) {
@@ -104,12 +106,9 @@ bool Browser::IsDefaultProtocolClient(const std::string& protocol,
   const std::vector<std::string> argv = {kXdgSettings, "check",
                                          kXdgSettingsDefaultSchemeHandler,
                                          protocol, desktop_name};
-  const auto output = GetXdgAppOutput(argv);
-  if (!output)
-    return false;
-
   // Allow any reply that starts with "yes".
-  return base::StartsWith(output.value(), "yes", base::CompareCase::SENSITIVE);
+  const std::optional<std::string> output = GetXdgAppOutput(argv);
+  return output && output->starts_with("yes");
 }
 
 // Todo implement
@@ -126,7 +125,7 @@ std::u16string Browser::GetApplicationNameForProtocol(const GURL& url) {
   return base::ASCIIToUTF16(GetXdgAppOutput(argv).value_or(std::string()));
 }
 
-bool Browser::SetBadgeCount(absl::optional<int> count) {
+bool Browser::SetBadgeCount(std::optional<int> count) {
   if (IsUnityRunning() && count.has_value()) {
     unity::SetDownloadCount(count.value());
     badge_count_ = count.value();
@@ -138,9 +137,10 @@ bool Browser::SetBadgeCount(absl::optional<int> count) {
 
 void Browser::SetLoginItemSettings(LoginItemSettings settings) {}
 
-Browser::LoginItemSettings Browser::GetLoginItemSettings(
+v8::Local<v8::Value> Browser::GetLoginItemSettings(
     const LoginItemSettings& options) {
-  return LoginItemSettings();
+  LoginItemSettings settings;
+  return gin::ConvertToV8(JavascriptEnvironment::GetIsolate(), settings);
 }
 
 std::string Browser::GetExecutableFileVersion() const {
@@ -212,8 +212,11 @@ void Browser::ShowAboutPanel() {
     }
   }
 
-  gtk_dialog_run(GTK_DIALOG(dialog));
-  gtk_widget_destroy(dialogWidget);
+  // destroy the widget when it closes
+  g_signal_connect_swapped(dialogWidget, "response",
+                           G_CALLBACK(gtk_widget_destroy), dialogWidget);
+
+  gtk_widget_show_all(dialogWidget);
 }
 
 void Browser::SetAboutPanelOptions(base::Value::Dict options) {

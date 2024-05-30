@@ -14,7 +14,9 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
-#include "components/os_crypt/os_crypt.h"
+#include "components/os_crypt/async/browser/key_provider.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
+#include "components/os_crypt/sync/os_crypt.h"
 #include "components/prefs/in_memory_pref_store.h"
 #include "components/prefs/json_pref_store.h"
 #include "components/prefs/overlay_user_pref_store.h"
@@ -25,13 +27,17 @@
 #include "components/proxy_config/proxy_config_dictionary.h"
 #include "components/proxy_config/proxy_config_pref_names.h"
 #include "content/public/browser/child_process_security_policy.h"
+#include "content/public/browser/network_quality_observer_factory.h"
+#include "content/public/browser/network_service_instance.h"
 #include "content/public/common/content_switches.h"
 #include "electron/fuses.h"
 #include "extensions/common/constants.h"
 #include "net/proxy_resolution/proxy_config.h"
 #include "net/proxy_resolution/proxy_config_service.h"
 #include "net/proxy_resolution/proxy_config_with_annotation.h"
+#include "services/device/public/cpp/geolocation/geolocation_system_permission_manager.h"
 #include "services/network/public/cpp/network_switches.h"
+#include "shell/browser/net/resolve_proxy_helper.h"
 #include "shell/common/electron_paths.h"
 #include "shell/common/thread_restrictions.h"
 
@@ -87,12 +93,6 @@ BuildState* BrowserProcessImpl::GetBuildState() {
   return nullptr;
 }
 
-breadcrumbs::BreadcrumbPersistentStorageManager*
-BrowserProcessImpl::GetBreadcrumbPersistentStorageManager() {
-  NOTIMPLEMENTED();
-  return nullptr;
-}
-
 void BrowserProcessImpl::PostEarlyInitialization() {
   PrefServiceFactory prefs_factory;
   auto pref_registry = base::MakeRefCounted<PrefRegistrySimple>();
@@ -101,9 +101,9 @@ void BrowserProcessImpl::PostEarlyInitialization() {
   OSCrypt::RegisterLocalPrefs(pref_registry.get());
 #endif
 
-  auto pref_store = base::MakeRefCounted<ValueMapPrefStore>();
-  ApplyProxyModeFromCommandLine(pref_store.get());
-  prefs_factory.set_command_line_prefs(std::move(pref_store));
+  in_memory_pref_store_ = base::MakeRefCounted<ValueMapPrefStore>();
+  ApplyProxyModeFromCommandLine(in_memory_pref_store());
+  prefs_factory.set_command_line_prefs(in_memory_pref_store());
 
   // Only use a persistent prefs store when cookie encryption is enabled as that
   // is the only key that needs it
@@ -128,6 +128,11 @@ void BrowserProcessImpl::PreCreateThreads() {
   // this can be created on first use.
   if (!SystemNetworkContextManager::GetInstance())
     SystemNetworkContextManager::CreateInstance(local_state_.get());
+}
+
+void BrowserProcessImpl::PreMainMessageLoopRun() {
+  CreateNetworkQualityObserver();
+  CreateOSCryptAsync();
 }
 
 void BrowserProcessImpl::PostMainMessageLoopRun() {
@@ -194,6 +199,11 @@ BrowserProcessImpl::system_network_context_manager() {
 
 network::NetworkQualityTracker* BrowserProcessImpl::network_quality_tracker() {
   return nullptr;
+}
+
+embedder_support::OriginTrialsSettingsStorage*
+BrowserProcessImpl::GetOriginTrialsSettingsStorage() {
+  return &origin_trials_settings_storage_;
 }
 
 policy::ChromeBrowserPolicyConnector*
@@ -287,12 +297,21 @@ SerialPolicyAllowedPorts* BrowserProcessImpl::serial_policy_allowed_ports() {
   return nullptr;
 }
 
-HidPolicyAllowedDevices* BrowserProcessImpl::hid_policy_allowed_devices() {
+HidSystemTrayIcon* BrowserProcessImpl::hid_system_tray_icon() {
   return nullptr;
 }
 
-HidSystemTrayIcon* BrowserProcessImpl::hid_system_tray_icon() {
+UsbSystemTrayIcon* BrowserProcessImpl::usb_system_tray_icon() {
   return nullptr;
+}
+
+subresource_filter::RulesetService*
+BrowserProcessImpl::fingerprinting_protection_ruleset_service() {
+  return nullptr;
+}
+
+os_crypt_async::OSCryptAsync* BrowserProcessImpl::os_crypt_async() {
+  return os_crypt_async_.get();
 }
 
 void BrowserProcessImpl::SetSystemLocale(const std::string& locale) {
@@ -302,6 +321,40 @@ void BrowserProcessImpl::SetSystemLocale(const std::string& locale) {
 const std::string& BrowserProcessImpl::GetSystemLocale() const {
   return system_locale_;
 }
+
+electron::ResolveProxyHelper* BrowserProcessImpl::GetResolveProxyHelper() {
+  if (!resolve_proxy_helper_) {
+    resolve_proxy_helper_ = base::MakeRefCounted<electron::ResolveProxyHelper>(
+        system_network_context_manager()->GetContext());
+  }
+  return resolve_proxy_helper_.get();
+}
+
+#if BUILDFLAG(IS_LINUX)
+void BrowserProcessImpl::SetLinuxStorageBackend(
+    os_crypt::SelectedLinuxBackend selected_backend) {
+  switch (selected_backend) {
+    case os_crypt::SelectedLinuxBackend::BASIC_TEXT:
+      selected_linux_storage_backend_ = "basic_text";
+      break;
+    case os_crypt::SelectedLinuxBackend::GNOME_LIBSECRET:
+      selected_linux_storage_backend_ = "gnome_libsecret";
+      break;
+    case os_crypt::SelectedLinuxBackend::KWALLET:
+      selected_linux_storage_backend_ = "kwallet";
+      break;
+    case os_crypt::SelectedLinuxBackend::KWALLET5:
+      selected_linux_storage_backend_ = "kwallet5";
+      break;
+    case os_crypt::SelectedLinuxBackend::KWALLET6:
+      selected_linux_storage_backend_ = "kwallet6";
+      break;
+    case os_crypt::SelectedLinuxBackend::DEFER:
+      NOTREACHED();
+      break;
+  }
+}
+#endif  // BUILDFLAG(IS_LINUX)
 
 void BrowserProcessImpl::SetApplicationLocale(const std::string& locale) {
   locale_ = locale;
@@ -323,4 +376,34 @@ printing::PrintJobManager* BrowserProcessImpl::print_job_manager() {
 
 StartupData* BrowserProcessImpl::startup_data() {
   return nullptr;
+}
+
+network::NetworkQualityTracker* BrowserProcessImpl::GetNetworkQualityTracker() {
+  if (!network_quality_tracker_) {
+    network_quality_tracker_ = std::make_unique<network::NetworkQualityTracker>(
+        base::BindRepeating(&content::GetNetworkService));
+  }
+  return network_quality_tracker_.get();
+}
+
+void BrowserProcessImpl::CreateNetworkQualityObserver() {
+  DCHECK(!network_quality_observer_);
+  network_quality_observer_ =
+      content::CreateNetworkQualityObserver(GetNetworkQualityTracker());
+  DCHECK(network_quality_observer_);
+}
+
+void BrowserProcessImpl::CreateOSCryptAsync() {
+  // source: https://chromium-review.googlesource.com/c/chromium/src/+/4455776
+
+  // For now, initialize OSCryptAsync with no providers. This delegates all
+  // encryption operations to OSCrypt.
+  // TODO(crbug.com/1373092): Add providers behind features, as support for them
+  // is added.
+  os_crypt_async_ = std::make_unique<os_crypt_async::OSCryptAsync>(
+      std::vector<
+          std::pair<size_t, std::unique_ptr<os_crypt_async::KeyProvider>>>());
+
+  // Trigger async initialization of OSCrypt key providers.
+  std::ignore = os_crypt_async_->GetInstance(base::DoNothing());
 }

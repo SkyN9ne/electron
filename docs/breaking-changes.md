@@ -12,7 +12,456 @@ This document uses the following convention to categorize breaking changes:
 * **Deprecated:** An API was marked as deprecated. The API will continue to function, but will emit a deprecation warning, and will be removed in a future release.
 * **Removed:** An API or feature was removed, and is no longer supported by Electron.
 
-## Planned Breaking API Changes (24.0)
+## Planned Breaking API Changes (32.0)
+
+### Removed: `File.path`
+
+The nonstandard `path` property of the Web `File` object was added in an early version of Electron as a convenience method for working with native files when doing everything in the renderer was more common. However, it represents a deviation from the standard and poses a minor security risk as well, so beginning in Electron 32.0 it has been removed in favor of the [`webUtils.getPathForFile`](api/web-utils.md#webutilsgetpathforfilefile) method.
+
+```js
+// Before (renderer)
+
+const file = document.querySelector('input[type=file]')
+alert(`Uploaded file path was: ${file.path}`)
+```
+
+```js
+// After (renderer)
+
+const file = document.querySelector('input[type=file]')
+electron.showFilePath(file)
+
+// (preload)
+const { contextBridge, webUtils } = require('electron')
+
+contextBridge.exposeInMainWorld('electron', {
+  showFilePath (file) {
+    // It's best not to expose the full file path to the web content if
+    // possible.
+    const path = webUtils.getPathForFile(file)
+    alert(`Uploaded file path was: ${path}`)
+  }
+})
+```
+
+## Planned Breaking API Changes (31.0)
+
+### Removed: `WebSQL` support
+
+Chromium has removed support for WebSQL upstream, transitioning it to Android only. See
+[Chromium's intent to remove discussion](https://groups.google.com/a/chromium.org/g/blink-dev/c/fWYb6evVA-w/m/wGI863zaAAAJ)
+for more information.
+
+### Behavior Changed: `nativeImage.toDataURL` will preseve PNG colorspace
+
+PNG decoder implementation has been changed to preserve colorspace data, the
+encoded data returned from this function now matches it.
+
+See [crbug.com/332584706](https://issues.chromium.org/issues/332584706) for more information.
+
+### Behavior Changed: `window.flashFrame(bool)` will flash dock icon continuously on macOS
+
+This brings the behavior to parity with Windows and Linux. Prior behavior: The first `flashFrame(true)` bounces the dock icon only once (using the [NSInformationalRequest](https://developer.apple.com/documentation/appkit/nsrequestuserattentiontype/nsinformationalrequest) level) and `flashFrame(false)` does nothing. New behavior: Flash continuously until `flashFrame(false)` is called. This uses the [NSCriticalRequest](https://developer.apple.com/documentation/appkit/nsrequestuserattentiontype/nscriticalrequest) level instead. To explicitly use `NSInformationalRequest` to cause a single dock icon bounce, it is still possible to use [`dock.bounce('informational')`](https://www.electronjs.org/docs/latest/api/dock#dockbouncetype-macos).
+
+## Planned Breaking API Changes (30.0)
+
+### Behavior Changed: cross-origin iframes now use Permission Policy to access features
+
+Cross-origin iframes must now specify features available to a given `iframe` via the `allow`
+attribute in order to access them.
+
+See [documentation](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#allow) for
+more information.
+
+### Removed: The `--disable-color-correct-rendering` switch
+
+This switch was never formally documented but it's removal is being noted here regardless. Chromium itself now has better support for color spaces so this flag should not be needed.
+
+### Behavior Changed: `BrowserView.setAutoResize` behavior on macOS
+
+In Electron 30, BrowserView is now a wrapper around the new [WebContentsView](api/web-contents-view.md) API.
+
+Previously, the `setAutoResize` function of the `BrowserView` API was backed by [autoresizing](https://developer.apple.com/documentation/appkit/nsview/1483281-autoresizingmask?language=objc) on macOS, and by a custom algorithm on Windows and Linux.
+For simple use cases such as making a BrowserView fill the entire window, the behavior of these two approaches was identical.
+However, in more advanced cases, BrowserViews would be autoresized differently on macOS than they would be on other platforms, as the custom resizing algorithm for Windows and Linux did not perfectly match the behavior of macOS's autoresizing API.
+The autoresizing behavior is now standardized across all platforms.
+
+If your app uses `BrowserView.setAutoResize` to do anything more complex than making a BrowserView fill the entire window, it's likely you already had custom logic in place to handle this difference in behavior on macOS.
+If so, that logic will no longer be needed in Electron 30 as autoresizing behavior is consistent.
+
+### Removed: `params.inputFormType` property on `context-menu` on `WebContents`
+
+The `inputFormType` property of the params object in the `context-menu`
+event from `WebContents` has been removed. Use the new `formControlType`
+property instead.
+
+### Removed: `process.getIOCounters()`
+
+Chromium has removed access to this information.
+
+## Planned Breaking API Changes (29.0)
+
+### Behavior Changed: `ipcRenderer` can no longer be sent over the `contextBridge`
+
+Attempting to send the entire `ipcRenderer` module as an object over the `contextBridge` will now result in
+an empty object on the receiving side of the bridge. This change was made to remove / mitigate
+a security footgun. You should not directly expose ipcRenderer or its methods over the bridge.
+Instead, provide a safe wrapper like below:
+
+```js
+contextBridge.exposeInMainWorld('app', {
+  onEvent: (cb) => ipcRenderer.on('foo', (e, ...args) => cb(args))
+})
+```
+
+### Removed: `renderer-process-crashed` event on `app`
+
+The `renderer-process-crashed` event on `app` has been removed.
+Use the new `render-process-gone` event instead.
+
+```js
+// Removed
+app.on('renderer-process-crashed', (event, webContents, killed) => { /* ... */ })
+
+// Replace with
+app.on('render-process-gone', (event, webContents, details) => { /* ... */ })
+```
+
+### Removed: `crashed` event on `WebContents` and `<webview>`
+
+The `crashed` events on `WebContents` and `<webview>` have been removed.
+Use the new `render-process-gone` event instead.
+
+```js
+// Removed
+win.webContents.on('crashed', (event, killed) => { /* ... */ })
+webview.addEventListener('crashed', (event) => { /* ... */ })
+
+// Replace with
+win.webContents.on('render-process-gone', (event, details) => { /* ... */ })
+webview.addEventListener('render-process-gone', (event) => { /* ... */ })
+```
+
+### Removed: `gpu-process-crashed` event on `app`
+
+The `gpu-process-crashed` event on `app` has been removed.
+Use the new `child-process-gone` event instead.
+
+```js
+// Removed
+app.on('gpu-process-crashed', (event, killed) => { /* ... */ })
+
+// Replace with
+app.on('child-process-gone', (event, details) => { /* ... */ })
+```
+
+## Planned Breaking API Changes (28.0)
+
+### Behavior Changed: `WebContents.backgroundThrottling` set to false affects all `WebContents` in the host `BrowserWindow`
+
+`WebContents.backgroundThrottling` set to false will disable frames throttling
+in the `BrowserWindow` for all `WebContents` displayed by it.
+
+### Removed: `BrowserWindow.setTrafficLightPosition(position)`
+
+`BrowserWindow.setTrafficLightPosition(position)` has been removed, the
+`BrowserWindow.setWindowButtonPosition(position)` API should be used instead
+which accepts `null` instead of `{ x: 0, y: 0 }` to reset the position to
+system default.
+
+```js
+// Removed in Electron 28
+win.setTrafficLightPosition({ x: 10, y: 10 })
+win.setTrafficLightPosition({ x: 0, y: 0 })
+
+// Replace with
+win.setWindowButtonPosition({ x: 10, y: 10 })
+win.setWindowButtonPosition(null)
+```
+
+### Removed: `BrowserWindow.getTrafficLightPosition()`
+
+`BrowserWindow.getTrafficLightPosition()` has been removed, the
+`BrowserWindow.getWindowButtonPosition()` API should be used instead
+which returns `null` instead of `{ x: 0, y: 0 }` when there is no custom
+position.
+
+```js
+// Removed in Electron 28
+const pos = win.getTrafficLightPosition()
+if (pos.x === 0 && pos.y === 0) {
+  // No custom position.
+}
+
+// Replace with
+const ret = win.getWindowButtonPosition()
+if (ret === null) {
+  // No custom position.
+}
+```
+
+### Removed: `ipcRenderer.sendTo()`
+
+The `ipcRenderer.sendTo()` API has been removed. It should be replaced by setting up a [`MessageChannel`](tutorial/message-ports.md#setting-up-a-messagechannel-between-two-renderers) between the renderers.
+
+The `senderId` and `senderIsMainFrame` properties of `IpcRendererEvent` have been removed as well.
+
+### Removed: `app.runningUnderRosettaTranslation`
+
+The `app.runningUnderRosettaTranslation` property has been removed.
+Use `app.runningUnderARM64Translation` instead.
+
+```js
+// Removed
+console.log(app.runningUnderRosettaTranslation)
+// Replace with
+console.log(app.runningUnderARM64Translation)
+```
+
+### Deprecated: `renderer-process-crashed` event on `app`
+
+The `renderer-process-crashed` event on `app` has been deprecated.
+Use the new `render-process-gone` event instead.
+
+```js
+// Deprecated
+app.on('renderer-process-crashed', (event, webContents, killed) => { /* ... */ })
+
+// Replace with
+app.on('render-process-gone', (event, webContents, details) => { /* ... */ })
+```
+
+### Deprecated: `params.inputFormType` property on `context-menu` on `WebContents`
+
+The `inputFormType` property of the params object in the `context-menu`
+event from `WebContents` has been deprecated. Use the new `formControlType`
+property instead.
+
+### Deprecated: `crashed` event on `WebContents` and `<webview>`
+
+The `crashed` events on `WebContents` and `<webview>` have been deprecated.
+Use the new `render-process-gone` event instead.
+
+```js
+// Deprecated
+win.webContents.on('crashed', (event, killed) => { /* ... */ })
+webview.addEventListener('crashed', (event) => { /* ... */ })
+
+// Replace with
+win.webContents.on('render-process-gone', (event, details) => { /* ... */ })
+webview.addEventListener('render-process-gone', (event) => { /* ... */ })
+```
+
+### Deprecated: `gpu-process-crashed` event on `app`
+
+The `gpu-process-crashed` event on `app` has been deprecated.
+Use the new `child-process-gone` event instead.
+
+```js
+// Deprecated
+app.on('gpu-process-crashed', (event, killed) => { /* ... */ })
+
+// Replace with
+app.on('child-process-gone', (event, details) => { /* ... */ })
+```
+
+## Planned Breaking API Changes (27.0)
+
+### Removed: macOS 10.13 / 10.14 support
+
+macOS 10.13 (High Sierra) and macOS 10.14 (Mojave) are no longer supported by [Chromium](https://chromium-review.googlesource.com/c/chromium/src/+/4629466).
+
+Older versions of Electron will continue to run on these operating systems, but macOS 10.15 (Catalina)
+or later will be required to run Electron v27.0.0 and higher.
+
+### Deprecated: `ipcRenderer.sendTo()`
+
+The `ipcRenderer.sendTo()` API has been deprecated. It should be replaced by setting up a [`MessageChannel`](tutorial/message-ports.md#setting-up-a-messagechannel-between-two-renderers) between the renderers.
+
+The `senderId` and `senderIsMainFrame` properties of `IpcRendererEvent` have been deprecated as well.
+
+### Removed: color scheme events in `systemPreferences`
+
+The following `systemPreferences` events have been removed:
+
+* `inverted-color-scheme-changed`
+* `high-contrast-color-scheme-changed`
+
+Use the new `updated` event on the `nativeTheme` module instead.
+
+```js
+// Removed
+systemPreferences.on('inverted-color-scheme-changed', () => { /* ... */ })
+systemPreferences.on('high-contrast-color-scheme-changed', () => { /* ... */ })
+
+// Replace with
+nativeTheme.on('updated', () => { /* ... */ })
+```
+
+### Removed: Some `window.setVibrancy` options on macOS
+
+The following vibrancy options have been removed:
+
+* 'light'
+* 'medium-light'
+* 'dark'
+* 'ultra-dark'
+* 'appearance-based'
+
+These were previously deprecated and have been removed by Apple in 10.15.
+
+### Removed: `webContents.getPrinters`
+
+The `webContents.getPrinters` method has been removed. Use
+`webContents.getPrintersAsync` instead.
+
+```js
+const w = new BrowserWindow({ show: false })
+
+// Removed
+console.log(w.webContents.getPrinters())
+// Replace with
+w.webContents.getPrintersAsync().then((printers) => {
+  console.log(printers)
+})
+```
+
+### Removed: `systemPreferences.{get,set}AppLevelAppearance` and `systemPreferences.appLevelAppearance`
+
+The `systemPreferences.getAppLevelAppearance` and `systemPreferences.setAppLevelAppearance`
+methods have been removed, as well as the `systemPreferences.appLevelAppearance` property.
+Use the `nativeTheme` module instead.
+
+```js
+// Removed
+systemPreferences.getAppLevelAppearance()
+// Replace with
+nativeTheme.shouldUseDarkColors
+
+// Removed
+systemPreferences.appLevelAppearance
+// Replace with
+nativeTheme.shouldUseDarkColors
+
+// Removed
+systemPreferences.setAppLevelAppearance('dark')
+// Replace with
+nativeTheme.themeSource = 'dark'
+```
+
+### Removed: `alternate-selected-control-text` value for `systemPreferences.getColor`
+
+The `alternate-selected-control-text` value for `systemPreferences.getColor`
+has been removed. Use `selected-content-background` instead.
+
+```js
+// Removed
+systemPreferences.getColor('alternate-selected-control-text')
+// Replace with
+systemPreferences.getColor('selected-content-background')
+```
+
+## Planned Breaking API Changes (26.0)
+
+### Deprecated: `webContents.getPrinters`
+
+The `webContents.getPrinters` method has been deprecated. Use
+`webContents.getPrintersAsync` instead.
+
+```js
+const w = new BrowserWindow({ show: false })
+
+// Deprecated
+console.log(w.webContents.getPrinters())
+// Replace with
+w.webContents.getPrintersAsync().then((printers) => {
+  console.log(printers)
+})
+```
+
+### Deprecated: `systemPreferences.{get,set}AppLevelAppearance` and `systemPreferences.appLevelAppearance`
+
+The `systemPreferences.getAppLevelAppearance` and `systemPreferences.setAppLevelAppearance`
+methods have been deprecated, as well as the `systemPreferences.appLevelAppearance` property.
+Use the `nativeTheme` module instead.
+
+```js
+// Deprecated
+systemPreferences.getAppLevelAppearance()
+// Replace with
+nativeTheme.shouldUseDarkColors
+
+// Deprecated
+systemPreferences.appLevelAppearance
+// Replace with
+nativeTheme.shouldUseDarkColors
+
+// Deprecated
+systemPreferences.setAppLevelAppearance('dark')
+// Replace with
+nativeTheme.themeSource = 'dark'
+```
+
+### Deprecated: `alternate-selected-control-text` value for `systemPreferences.getColor`
+
+The `alternate-selected-control-text` value for `systemPreferences.getColor`
+has been deprecated. Use `selected-content-background` instead.
+
+```js
+// Deprecated
+systemPreferences.getColor('alternate-selected-control-text')
+// Replace with
+systemPreferences.getColor('selected-content-background')
+```
+
+## Planned Breaking API Changes (25.0)
+
+### Deprecated: `protocol.{register,intercept}{Buffer,String,Stream,File,Http}Protocol`
+
+The `protocol.register*Protocol` and `protocol.intercept*Protocol` methods have
+been replaced with [`protocol.handle`](api/protocol.md#protocolhandlescheme-handler).
+
+The new method can either register a new protocol or intercept an existing
+protocol, and responses can be of any type.
+
+```js
+// Deprecated in Electron 25
+protocol.registerBufferProtocol('some-protocol', () => {
+  callback({ mimeType: 'text/html', data: Buffer.from('<h5>Response</h5>') })
+})
+
+// Replace with
+protocol.handle('some-protocol', () => {
+  return new Response(
+    Buffer.from('<h5>Response</h5>'), // Could also be a string or ReadableStream.
+    { headers: { 'content-type': 'text/html' } }
+  )
+})
+```
+
+```js
+// Deprecated in Electron 25
+protocol.registerHttpProtocol('some-protocol', () => {
+  callback({ url: 'https://electronjs.org' })
+})
+
+// Replace with
+protocol.handle('some-protocol', () => {
+  return net.fetch('https://electronjs.org')
+})
+```
+
+```js
+// Deprecated in Electron 25
+protocol.registerFileProtocol('some-protocol', () => {
+  callback({ filePath: '/path/to/my/file' })
+})
+
+// Replace with
+protocol.handle('some-protocol', () => {
+  return net.fetch('file:///path/to/my/file')
+})
+```
 
 ### Deprecated: `BrowserWindow.setTrafficLightPosition(position)`
 
@@ -22,7 +471,7 @@ which accepts `null` instead of `{ x: 0, y: 0 }` to reset the position to
 system default.
 
 ```js
-// Removed in Electron 24
+// Deprecated in Electron 25
 win.setTrafficLightPosition({ x: 10, y: 10 })
 win.setTrafficLightPosition({ x: 0, y: 0 })
 
@@ -39,7 +488,7 @@ which returns `null` instead of `{ x: 0, y: 0 }` when there is no custom
 position.
 
 ```js
-// Removed in Electron 24
+// Deprecated in Electron 25
 const pos = win.getTrafficLightPosition()
 if (pos.x === 0 && pos.y === 0) {
   // No custom position.
@@ -50,6 +499,43 @@ const ret = win.getWindowButtonPosition()
 if (ret === null) {
   // No custom position.
 }
+```
+
+## Planned Breaking API Changes (24.0)
+
+### API Changed: `nativeImage.createThumbnailFromPath(path, size)`
+
+The `maxSize` parameter has been changed to `size` to reflect that the size passed in will be the size the thumbnail created. Previously, Windows would not scale the image up if it were smaller than `maxSize`, and
+macOS would always set the size to `maxSize`. Behavior is now the same across platforms.
+
+Updated Behavior:
+
+```js
+// a 128x128 image.
+const imagePath = path.join('path', 'to', 'capybara.png')
+
+// Scaling up a smaller image.
+const upSize = { width: 256, height: 256 }
+nativeImage.createThumbnailFromPath(imagePath, upSize).then(result => {
+  console.log(result.getSize()) // { width: 256, height: 256 }
+})
+
+// Scaling down a larger image.
+const downSize = { width: 64, height: 64 }
+nativeImage.createThumbnailFromPath(imagePath, downSize).then(result => {
+  console.log(result.getSize()) // { width: 64, height: 64 }
+})
+```
+
+Previous Behavior (on Windows):
+
+```js
+// a 128x128 image
+const imagePath = path.join('path', 'to', 'capybara.png')
+const size = { width: 256, height: 256 }
+nativeImage.createThumbnailFromPath(imagePath, size).then(result => {
+  console.log(result.getSize()) // { width: 128, height: 128 }
+})
 ```
 
 ## Planned Breaking API Changes (23.0)
@@ -194,11 +680,44 @@ webContents.setWindowOpenHandler((details) => {
 })
 ```
 
+### Removed: `<webview>` `new-window` event
+
+The `new-window` event of `<webview>` has been removed. There is no direct replacement.
+
+```js
+// Removed in Electron 22
+webview.addEventListener('new-window', (event) => {})
+```
+
+```js
+// Replace with
+
+// main.js
+mainWindow.webContents.on('did-attach-webview', (event, wc) => {
+  wc.setWindowOpenHandler((details) => {
+    mainWindow.webContents.send('webview-new-window', wc.id, details)
+    return { action: 'deny' }
+  })
+})
+
+// preload.js
+const { ipcRenderer } = require('electron')
+ipcRenderer.on('webview-new-window', (e, webContentsId, details) => {
+  console.log('webview-new-window', webContentsId, details)
+  document.getElementById('webview').dispatchEvent(new Event('new-window'))
+})
+
+// renderer.js
+document.getElementById('webview').addEventListener('new-window', () => {
+  console.log('got new-window event')
+})
+```
+
 ### Deprecated: BrowserWindow `scroll-touch-*` events
 
 The `scroll-touch-begin`, `scroll-touch-end` and `scroll-touch-edge` events on
-BrowserWindow are deprecated. Instead, use the newly available [`input-event`
-event](api/web-contents.md#event-input-event) on WebContents.
+BrowserWindow are deprecated. Instead, use the newly available
+[`input-event` event](api/web-contents.md#event-input-event) on WebContents.
 
 ```js
 // Deprecated
@@ -223,8 +742,8 @@ win.webContents.on('input-event', (_, event) => {
 ### Behavior Changed: V8 Memory Cage enabled
 
 The V8 memory cage has been enabled, which has implications for native modules
-which wrap non-V8 memory with `ArrayBuffer` or `Buffer`. See the [blog post
-about the V8 memory cage](https://www.electronjs.org/blog/v8-memory-cage) for
+which wrap non-V8 memory with `ArrayBuffer` or `Buffer`. See the
+[blog post about the V8 memory cage](https://www.electronjs.org/blog/v8-memory-cage) for
 more details.
 
 ### API Changed: `webContents.printToPDF()`
@@ -415,6 +934,18 @@ to open synchronously scriptable child windows, among other incompatibilities.
 
 See the documentation for [window.open in Electron](api/window-open.md)
 for more details.
+
+### Deprecated: `app.runningUnderRosettaTranslation`
+
+The `app.runningUnderRosettaTranslation` property has been deprecated.
+Use `app.runningUnderARM64Translation` instead.
+
+```js
+// Deprecated
+console.log(app.runningUnderRosettaTranslation)
+// Replace with
+console.log(app.runningUnderARM64Translation)
+```
 
 ## Planned Breaking API Changes (14.0)
 
@@ -814,8 +1345,7 @@ const w = new BrowserWindow({
 })
 ```
 
-We [recommend moving away from the remote
-module](https://medium.com/@nornagon/electrons-remote-module-considered-harmful-70d69500f31).
+We [recommend moving away from the remote module](https://medium.com/@nornagon/electrons-remote-module-considered-harmful-70d69500f31).
 
 ### `protocol.unregisterProtocol`
 
@@ -823,7 +1353,7 @@ module](https://medium.com/@nornagon/electrons-remote-module-considered-harmful-
 
 The APIs are now synchronous and the optional callback is no longer needed.
 
-```javascript
+```js
 // Deprecated
 protocol.unregisterProtocol(scheme, () => { /* ... */ })
 // Replace with
@@ -852,7 +1382,7 @@ protocol.unregisterProtocol(scheme)
 
 The APIs are now synchronous and the optional callback is no longer needed.
 
-```javascript
+```js
 // Deprecated
 protocol.registerFileProtocol(scheme, handler, () => { /* ... */ })
 // Replace with
@@ -867,7 +1397,7 @@ until navigation happens.
 This API is deprecated and users should use `protocol.isProtocolRegistered`
 and `protocol.isProtocolIntercepted` instead.
 
-```javascript
+```js
 // Deprecated
 protocol.isProtocolHandled(scheme).then(() => { /* ... */ })
 // Replace with
@@ -975,12 +1505,11 @@ You can see the original API proposal and reasoning [here](https://github.com/el
 
 ### Behavior Changed: Values sent over IPC are now serialized with Structured Clone Algorithm
 
-The algorithm used to serialize objects sent over IPC (through
-`ipcRenderer.send`, `ipcRenderer.sendSync`, `WebContents.send` and related
-methods) has been switched from a custom algorithm to V8's built-in [Structured
-Clone Algorithm][SCA], the same algorithm used to serialize messages for
-`postMessage`. This brings about a 2x performance improvement for large
-messages, but also brings some breaking changes in behavior.
+The algorithm used to serialize objects sent over IPC (through `ipcRenderer.send`,
+`ipcRenderer.sendSync`, `WebContents.send` and related methods) has been switched from a custom
+algorithm to V8's built-in [Structured Clone Algorithm][SCA], the same algorithm used to serialize
+messages for `postMessage`. This brings about a 2x performance improvement for large messages,
+but also brings some breaking changes in behavior.
 
 * Sending Functions, Promises, WeakMaps, WeakSets, or objects containing any
   such values, over IPC will now throw an exception, instead of silently
@@ -1206,7 +1735,7 @@ folder
 └── file3
 ```
 
-In Electron <=6, this would return a `FileList` with a `File` object for:
+In Electron &lt;=6, this would return a `FileList` with a `File` object for:
 
 ```console
 path/to/folder
@@ -1487,8 +2016,8 @@ app.getGPUInfo('basic')
 When building native modules for windows, the `win_delay_load_hook` variable in
 the module's `binding.gyp` must be true (which is the default). If this hook is
 not present, then the native module will fail to load on Windows, with an error
-message like `Cannot find module`. See the [native module
-guide](./tutorial/using-native-node-modules.md) for more.
+message like `Cannot find module`.
+See the [native module guide](./tutorial/using-native-node-modules.md) for more.
 
 ### Removed: IA32 Linux support
 

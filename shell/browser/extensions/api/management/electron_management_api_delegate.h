@@ -10,6 +10,7 @@
 
 #include "base/task/cancelable_task_tracker.h"
 #include "extensions/browser/api/management/management_api_delegate.h"
+#include "extensions/common/extension_id.h"
 
 class ElectronManagementAPIDelegate : public extensions::ManagementAPIDelegate {
  public:
@@ -17,16 +18,13 @@ class ElectronManagementAPIDelegate : public extensions::ManagementAPIDelegate {
   ~ElectronManagementAPIDelegate() override;
 
   // ManagementAPIDelegate.
-  void LaunchAppFunctionDelegate(
+  bool LaunchAppFunctionDelegate(
       const extensions::Extension* extension,
       content::BrowserContext* context) const override;
   GURL GetFullLaunchURL(const extensions::Extension* extension) const override;
   extensions::LaunchType GetLaunchType(
       const extensions::ExtensionPrefs* prefs,
       const extensions::Extension* extension) const override;
-  void GetPermissionWarningsByManifestFunctionDelegate(
-      extensions::ManagementGetPermissionWarningsByManifestFunction* function,
-      const std::string& manifest_str) const override;
   std::unique_ptr<extensions::InstallPromptDelegate> SetEnabledFunctionDelegate(
       content::WebContents* web_contents,
       content::BrowserContext* browser_context,
@@ -54,28 +52,20 @@ class ElectronManagementAPIDelegate : public extensions::ManagementAPIDelegate {
       const GURL& web_app_url,
       ManagementAPIDelegate::InstallOrLaunchWebAppCallback callback)
       const override;
-  bool CanContextInstallAndroidApps(
-      content::BrowserContext* context) const override;
-  void CheckAndroidAppInstallStatus(
-      const std::string& package_name,
-      ManagementAPIDelegate::AndroidAppInstallStatusCallback callback)
-      const override;
-  void InstallReplacementAndroidApp(
-      const std::string& package_name,
-      ManagementAPIDelegate::InstallAndroidAppCallback callback) const override;
-  void EnableExtension(content::BrowserContext* context,
-                       const std::string& extension_id) const override;
+  void EnableExtension(
+      content::BrowserContext* context,
+      const extensions::ExtensionId& extension_id) const override;
   void DisableExtension(
       content::BrowserContext* context,
       const extensions::Extension* source_extension,
-      const std::string& extension_id,
+      const extensions::ExtensionId& extension_id,
       extensions::disable_reason::DisableReason disable_reason) const override;
   bool UninstallExtension(content::BrowserContext* context,
-                          const std::string& transient_extension_id,
+                          const extensions::ExtensionId& transient_extension_id,
                           extensions::UninstallReason reason,
                           std::u16string* error) const override;
   void SetLaunchType(content::BrowserContext* context,
-                     const std::string& extension_id,
+                     const extensions::ExtensionId& extension_id,
                      extensions::LaunchType launch_type) const override;
   GURL GetIconURL(const extensions::Extension* extension,
                   int icon_size,

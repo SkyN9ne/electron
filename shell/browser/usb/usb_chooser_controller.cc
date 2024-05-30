@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -35,12 +36,12 @@ namespace electron {
 
 UsbChooserController::UsbChooserController(
     RenderFrameHost* render_frame_host,
-    std::vector<device::mojom::UsbDeviceFilterPtr> device_filters,
+    blink::mojom::WebUsbRequestDeviceOptionsPtr options,
     blink::mojom::WebUsbService::GetPermissionCallback callback,
     content::WebContents* web_contents,
     base::WeakPtr<ElectronUsbDelegate> usb_delegate)
     : WebContentsObserver(web_contents),
-      filters_(std::move(device_filters)),
+      options_(std::move(options)),
       callback_(std::move(callback)),
       origin_(render_frame_host->GetMainFrame()->GetLastCommittedOrigin()),
       usb_delegate_(usb_delegate),
@@ -54,7 +55,7 @@ UsbChooserController::UsbChooserController(
 }
 
 UsbChooserController::~UsbChooserController() {
-  RunCallback(/*device=*/nullptr);
+  RunCallback(/*device_info=*/nullptr);
 }
 
 api::Session* UsbChooserController::GetSession() {
@@ -85,7 +86,7 @@ void UsbChooserController::OnDeviceRemoved(
 void UsbChooserController::OnDeviceChosen(gin::Arguments* args) {
   std::string device_id;
   if (!args->GetNext(&device_id) || device_id.empty()) {
-    RunCallback(/*device=*/nullptr);
+    RunCallback(/*device_info=*/nullptr);
   } else {
     auto* device_info = chooser_context_->GetDeviceInfo(device_id);
     if (device_info) {
@@ -95,7 +96,7 @@ void UsbChooserController::OnDeviceChosen(gin::Arguments* args) {
       node::Environment* env = node::Environment::GetCurrent(isolate);
       EmitWarning(env, "The device id " + device_id + " was not found.",
                   "UnknownUsbDeviceId");
-      RunCallback(/*device=*/nullptr);
+      RunCallback(/*device_info=*/nullptr);
     }
   }
 }
@@ -105,7 +106,7 @@ void UsbChooserController::OnBrowserContextShutdown() {
 }
 
 // Get a list of devices that can be shown in the chooser bubble UI for
-// user to grant permsssion.
+// user to grant permission.
 void UsbChooserController::GotUsbDeviceList(
     std::vector<::device::mojom::UsbDeviceInfoPtr> devices) {
   // Listen to UsbChooserContext for OnDeviceAdded/Removed events after the
@@ -119,6 +120,12 @@ void UsbChooserController::GotUsbDeviceList(
     auto* rfh = content::RenderFrameHost::FromID(render_frame_host_id_);
     v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
     v8::HandleScope scope(isolate);
+
+    // "select-usb-device" should respect |filters|.
+    std::erase_if(devices, [this](const auto& device_info) {
+      return !DisplayDevice(*device_info);
+    });
+
     v8::Local<v8::Object> details = gin::DataObjectBuilder(isolate)
                                         .Set("deviceList", devices)
                                         .Set("frame", rfh)
@@ -126,19 +133,26 @@ void UsbChooserController::GotUsbDeviceList(
 
     prevent_default =
         session->Emit("select-usb-device", details,
-                      base::AdaptCallbackForRepeating(
-                          base::BindOnce(&UsbChooserController::OnDeviceChosen,
-                                         weak_factory_.GetWeakPtr())));
+                      base::BindRepeating(&UsbChooserController::OnDeviceChosen,
+                                          weak_factory_.GetWeakPtr()));
   }
   if (!prevent_default) {
-    RunCallback(/*port=*/nullptr);
+    RunCallback(/*device_info=*/nullptr);
   }
 }
 
 bool UsbChooserController::DisplayDevice(
     const device::mojom::UsbDeviceInfo& device_info) const {
-  if (!device::UsbDeviceFilterMatchesAny(filters_, device_info))
+  if (!device::UsbDeviceFilterMatchesAny(options_->filters, device_info)) {
     return false;
+  }
+
+  if (base::ranges::any_of(
+          options_->exclusion_filters, [&device_info](const auto& filter) {
+            return device::UsbDeviceFilterMatches(*filter, device_info);
+          })) {
+    return false;
+  }
 
   return true;
 }

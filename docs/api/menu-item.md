@@ -14,7 +14,7 @@ See [`Menu`](menu.md) for examples.
     * `menuItem` MenuItem
     * `browserWindow` [BrowserWindow](browser-window.md) | undefined - This will not be defined if no window is open.
     * `event` [KeyboardEvent](structures/keyboard-event.md)
-  * `role` string (optional) - Can be `undo`, `redo`, `cut`, `copy`, `paste`, `pasteAndMatchStyle`, `delete`, `selectAll`, `reload`, `forceReload`, `toggleDevTools`, `resetZoom`, `zoomIn`, `zoomOut`, `toggleSpellChecker`, `togglefullscreen`, `window`, `minimize`, `close`, `help`, `about`, `services`, `hide`, `hideOthers`, `unhide`, `quit`, `showSubstitutions`, `toggleSmartQuotes`, `toggleSmartDashes`, `toggleTextReplacement`, `startSpeaking`, `stopSpeaking`, `zoom`, `front`, `appMenu`, `fileMenu`, `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`, `toggleTabBar`, `selectNextTab`, `selectPreviousTab`, `mergeAllWindows`, `clearRecentDocuments`, `moveTabToNewWindow` or `windowMenu` - Define the action of the menu item, when specified the
+  * `role` string (optional) - Can be `undo`, `redo`, `cut`, `copy`, `paste`, `pasteAndMatchStyle`, `delete`, `selectAll`, `reload`, `forceReload`, `toggleDevTools`, `resetZoom`, `zoomIn`, `zoomOut`, `toggleSpellChecker`, `togglefullscreen`, `window`, `minimize`, `close`, `help`, `about`, `services`, `hide`, `hideOthers`, `unhide`, `quit`, `showSubstitutions`, `toggleSmartQuotes`, `toggleSmartDashes`, `toggleTextReplacement`, `startSpeaking`, `stopSpeaking`, `zoom`, `front`, `appMenu`, `fileMenu`, `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`, `toggleTabBar`, `selectNextTab`, `selectPreviousTab`, `showAllTabs`, `mergeAllWindows`, `clearRecentDocuments`, `moveTabToNewWindow` or `windowMenu` - Define the action of the menu item, when specified the
     `click` property will be ignored. See [roles](#roles).
   * `type` string (optional) - Can be `normal`, `separator`, `submenu`, `checkbox` or
     `radio`.
@@ -38,18 +38,18 @@ See [`Menu`](menu.md) for examples.
     `Menu.buildFromTemplate`.
   * `id` string (optional) - Unique within a single menu. If defined then it can be used
     as a reference to this item by the position attribute.
-  * `before` string[] (optional) - Inserts this item before the item with the specified label. If
+  * `before` string[] (optional) - Inserts this item before the item with the specified id. If
     the referenced item doesn't exist the item will be inserted at the end of  the menu. Also implies
     that the menu item in question should be placed in the same “group” as the item.
-  * `after` string[] (optional) - Inserts this item after the item with the specified label. If the
+  * `after` string[] (optional) - Inserts this item after the item with the specified id. If the
     referenced item doesn't exist the item will be inserted at the end of
     the menu.
   * `beforeGroupContaining` string[] (optional) - Provides a means for a single context menu to declare
     the placement of their containing group before the containing group of the item
-    with the specified label.
+    with the specified id.
   * `afterGroupContaining` string[] (optional) - Provides a means for a single context menu to declare
     the placement of their containing group after the containing group of the item
-    with the specified label.
+    with the specified id.
 
 **Note:** `acceleratorWorksWhenHidden` is specified as being macOS-only because accelerators always work when items are hidden on Windows and Linux. The option is exposed to users to give them the option to turn it off, as this is possible in native macOS development.
 
@@ -111,11 +111,12 @@ The following additional roles are available on _macOS_:
 * `toggleTabBar` - Map to the `toggleTabBar` action.
 * `selectNextTab` - Map to the `selectNextTab` action.
 * `selectPreviousTab` - Map to the `selectPreviousTab` action.
+* `showAllTabs` - Map to the `showAllTabs` action.
 * `mergeAllWindows` - Map to the `mergeAllWindows` action.
 * `moveTabToNewWindow` - Map to the `moveTabToNewWindow` action.
 * `window` - The submenu is a "Window" menu.
 * `help` - The submenu is a "Help" menu.
-* `services` - The submenu is a ["Services"](https://developer.apple.com/documentation/appkit/nsapplication/1428608-servicesmenu?language=objc) menu. This is only intended for use in the Application Menu and is *not* the same as the "Services" submenu used in context menus in macOS apps, which is not implemented in Electron.
+* `services` - The submenu is a ["Services"](https://developer.apple.com/documentation/appkit/nsapplication/1428608-servicesmenu?language=objc) menu. This is only intended for use in the Application Menu and is _not_ the same as the "Services" submenu used in context menus in macOS apps, which is not implemented in Electron.
 * `recentDocuments` - The submenu is an "Open Recent" menu.
 * `clearRecentDocuments` - Map to the `clearRecentDocuments` action.
 * `shareMenu` - The submenu is [share menu][ShareMenu]. The `sharingItem` property must also be set to indicate the item to share.
@@ -159,7 +160,7 @@ A `string` indicating the type of the item. Can be `normal`, `separator`, `subme
 
 #### `menuItem.role`
 
-A `string` (optional) indicating the item's role, if set. Can be `undo`, `redo`, `cut`, `copy`, `paste`, `pasteAndMatchStyle`, `delete`, `selectAll`, `reload`, `forceReload`, `toggleDevTools`, `resetZoom`, `zoomIn`, `zoomOut`, `toggleSpellChecker`, `togglefullscreen`, `window`, `minimize`, `close`, `help`, `about`, `services`, `hide`, `hideOthers`, `unhide`, `quit`, `startSpeaking`, `stopSpeaking`, `zoom`, `front`, `appMenu`, `fileMenu`, `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`, `toggleTabBar`, `selectNextTab`, `selectPreviousTab`, `mergeAllWindows`, `clearRecentDocuments`, `moveTabToNewWindow` or `windowMenu`
+A `string` (optional) indicating the item's role, if set. Can be `undo`, `redo`, `cut`, `copy`, `paste`, `pasteAndMatchStyle`, `delete`, `selectAll`, `reload`, `forceReload`, `toggleDevTools`, `resetZoom`, `zoomIn`, `zoomOut`, `toggleSpellChecker`, `togglefullscreen`, `window`, `minimize`, `close`, `help`, `about`, `services`, `hide`, `hideOthers`, `unhide`, `quit`, `startSpeaking`, `stopSpeaking`, `zoom`, `front`, `appMenu`, `fileMenu`, `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`, `toggleTabBar`, `selectNextTab`, `selectPreviousTab`, `showAllTabs`, `mergeAllWindows`, `clearRecentDocuments`, `moveTabToNewWindow` or `windowMenu`
 
 #### `menuItem.accelerator`
 

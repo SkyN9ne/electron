@@ -7,10 +7,12 @@
 #include <iterator>
 #include <memory>
 #include <set>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -146,7 +148,7 @@ void SpellCheckClient::SpellCheckText() {
     return;
   }
 
-  text_iterator_.SetText(text.c_str(), text.size());
+  text_iterator_.SetText(text);
 
   SpellCheckScope scope(*this);
   std::u16string word;
@@ -192,13 +194,13 @@ void SpellCheckClient::OnSpellCheckDone(
   auto& word_list = pending_request_param_->wordlist();
 
   for (const auto& word : word_list) {
-    if (misspelled.find(word.text) != misspelled.end()) {
+    if (base::Contains(misspelled, word.text)) {
       // If this is a contraction, iterate through parts and accept the word
       // if none of them are misspelled
       if (!word.contraction_words.empty()) {
         auto all_correct = true;
         for (const auto& contraction_word : word.contraction_words) {
-          if (misspelled.find(contraction_word) != misspelled.end()) {
+          if (base::Contains(misspelled, contraction_word)) {
             all_correct = false;
             break;
           }
@@ -244,7 +246,7 @@ bool SpellCheckClient::IsContraction(
     std::vector<std::u16string>* contraction_words) {
   DCHECK(contraction_iterator_.IsInitialized());
 
-  contraction_iterator_.SetText(contraction.c_str(), contraction.length());
+  contraction_iterator_.SetText(contraction);
 
   std::u16string word;
   size_t word_start;

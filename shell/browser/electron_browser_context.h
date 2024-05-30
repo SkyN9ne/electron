@@ -7,20 +7,24 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <variant>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/predictors/preconnect_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/resource_context.h"
 #include "electron/buildflags/buildflags.h"
+#include "electron/shell/browser/media/media_device_id_salt.h"
 #include "gin/arguments.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
-#include "shell/browser/media/media_device_id_salt.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
 
 class PrefService;
@@ -65,6 +69,9 @@ using DisplayMediaResponseCallbackJs =
 using DisplayMediaRequestHandler =
     base::RepeatingCallback<void(const content::MediaStreamRequest&,
                                  DisplayMediaResponseCallbackJs)>;
+using PartitionOrPath =
+    std::variant<std::reference_wrapper<const std::string>,
+                 std::reference_wrapper<const base::FilePath>>;
 
 class ElectronBrowserContext : public content::BrowserContext {
  public:
@@ -74,22 +81,24 @@ class ElectronBrowserContext : public content::BrowserContext {
 
   // partition_id => browser_context
   struct PartitionKey {
-    std::string partition;
-    bool in_memory;
+    PartitionKey(const std::string_view partition, bool in_memory)
+        : type_{Type::Partition}, location_{partition}, in_memory_{in_memory} {}
 
-    PartitionKey(const std::string& partition, bool in_memory)
-        : partition(partition), in_memory(in_memory) {}
+    explicit PartitionKey(const base::FilePath& file_path)
+        : type_{Type::Path},
+          location_{file_path.AsUTF8Unsafe()},
+          in_memory_{false} {}
 
-    bool operator<(const PartitionKey& other) const {
-      if (partition == other.partition)
-        return in_memory < other.in_memory;
-      return partition < other.partition;
-    }
+    friend auto operator<=>(const PartitionKey&, const PartitionKey&) = default;
 
-    bool operator==(const PartitionKey& other) const {
-      return (partition == other.partition) && (in_memory == other.in_memory);
-    }
+   private:
+    enum class Type { Partition, Path };
+
+    Type type_;
+    std::string location_;
+    bool in_memory_;
   };
+
   using BrowserContextMap =
       std::map<PartitionKey, std::unique_ptr<ElectronBrowserContext>>;
 
@@ -100,20 +109,27 @@ class ElectronBrowserContext : public content::BrowserContext {
                                       bool in_memory,
                                       base::Value::Dict options = {});
 
+  // Get or create the BrowserContext using the |path|.
+  // The |options| will be passed to constructor when there is no
+  // existing BrowserContext.
+  static ElectronBrowserContext* FromPath(const base::FilePath& path,
+                                          base::Value::Dict options = {});
+
   static BrowserContextMap& browser_context_map();
 
   void SetUserAgent(const std::string& user_agent);
   std::string GetUserAgent() const;
-  bool CanUseHttpCache() const;
-  int GetMaxCacheSize() const;
+  bool can_use_http_cache() const { return use_cache_; }
+  int max_cache_size() const { return max_cache_size_; }
   ResolveProxyHelper* GetResolveProxyHelper();
   predictors::PreconnectManager* GetPreconnectManager();
   scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory();
 
+  std::string GetMediaDeviceIDSalt();
+
   // content::BrowserContext:
   base::FilePath GetPath() override;
   bool IsOffTheRecord() override;
-  content::ResourceContext* GetResourceContext() override;
   std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
       const base::FilePath& partition_path) override;
   content::PushMessagingService* GetPushMessagingService() override;
@@ -122,7 +138,6 @@ class ElectronBrowserContext : public content::BrowserContext {
   content::BackgroundSyncController* GetBackgroundSyncController() override;
   content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()
       override;
-  std::string GetMediaDeviceIDSalt() override;
   content::DownloadManagerDelegate* GetDownloadManagerDelegate() override;
   content::BrowserPluginGuestManager* GetGuestManager() override;
   content::PlatformNotificationService* GetPlatformNotificationService()
@@ -135,6 +150,8 @@ class ElectronBrowserContext : public content::BrowserContext {
   content::StorageNotificationService* GetStorageNotificationService() override;
   content::ReduceAcceptLanguageControllerDelegate*
   GetReduceAcceptLanguageControllerDelegate() override;
+  content::FileSystemAccessPermissionContext*
+  GetFileSystemAccessPermissionContext() override;
 
   CookieChangeNotifier* cookie_change_notifier() const {
     return cookie_change_notifier_.get();
@@ -190,9 +207,11 @@ class ElectronBrowserContext : public content::BrowserContext {
                              blink::PermissionType permissionType);
 
  private:
-  ElectronBrowserContext(const std::string& partition,
+  ElectronBrowserContext(const PartitionOrPath partition_location,
                          bool in_memory,
                          base::Value::Dict options);
+
+  ElectronBrowserContext(base::FilePath partition, base::Value::Dict options);
 
   static void DisplayMediaDeviceChosen(
       const content::MediaStreamRequest& request,
@@ -202,12 +221,7 @@ class ElectronBrowserContext : public content::BrowserContext {
   // Initialize pref registry.
   void InitPrefs();
 
-  bool DoesDeviceMatch(const base::Value& device,
-                       const base::Value* device_to_compare,
-                       blink::PermissionType permission_type);
-
   scoped_refptr<ValueMapPrefStore> in_memory_pref_store_;
-  std::unique_ptr<content::ResourceContext> resource_context_;
   std::unique_ptr<CookieChangeNotifier> cookie_change_notifier_;
   std::unique_ptr<PrefService> prefs_;
   std::unique_ptr<ElectronDownloadManagerDelegate> download_manager_delegate_;
@@ -219,7 +233,7 @@ class ElectronBrowserContext : public content::BrowserContext {
   std::unique_ptr<predictors::PreconnectManager> preconnect_manager_;
   std::unique_ptr<ProtocolRegistry> protocol_registry_;
 
-  absl::optional<std::string> user_agent_;
+  std::optional<std::string> user_agent_;
   base::FilePath path_;
   bool in_memory_ = false;
   bool use_cache_ = true;
@@ -227,7 +241,7 @@ class ElectronBrowserContext : public content::BrowserContext {
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
   // Owned by the KeyedService system.
-  extensions::ElectronExtensionSystem* extension_system_;
+  raw_ptr<extensions::ElectronExtensionSystem> extension_system_;
 #endif
 
   // Shared URLLoaderFactory.

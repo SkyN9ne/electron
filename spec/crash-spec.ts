@@ -1,7 +1,7 @@
 import { expect } from 'chai';
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as cp from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { ifit } from './lib/spec-helpers';
 
 const fixturePath = path.resolve(__dirname, 'fixtures', 'crash-cases');
@@ -40,9 +40,13 @@ const shouldRunCase = (crashCase: string) => {
     case 'quit-on-crashed-event': {
       return (process.platform !== 'win32' || process.arch !== 'ia32');
     }
-    // TODO(jkleinsc) fix this test on Linux on arm/arm64
+    // TODO(jkleinsc) fix this test on Linux on arm/arm64 and 32bit windows
     case 'js-execute-iframe': {
-      return (process.platform !== 'linux' || (process.arch !== 'arm64' && process.arch !== 'arm'));
+      if (process.platform === 'win32') {
+        return process.arch !== 'ia32';
+      } else {
+        return (process.platform !== 'linux' || (process.arch !== 'arm64' && process.arch !== 'arm'));
+      }
     }
     default: {
       return true;

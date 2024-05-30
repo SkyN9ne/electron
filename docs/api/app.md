@@ -7,7 +7,7 @@ Process: [Main](../glossary.md#main-process)
 The following example shows how to quit the application when the last window is
 closed:
 
-```javascript
+```js
 const { app } = require('electron')
 app.on('window-all-closed', () => {
   app.quit()
@@ -23,8 +23,7 @@ The `app` object emits the following events:
 Emitted when the application has finished basic startup. On Windows and Linux,
 the `will-finish-launching` event is the same as the `ready` event; on macOS,
 this event represents the `applicationWillFinishLaunching` notification of
-`NSApplication`. You would usually set up listeners for the `open-file` and
-`open-url` events here, and start the crash reporter and auto updater.
+`NSApplication`.
 
 In most cases, you should do everything in the `ready` event handler.
 
@@ -33,7 +32,7 @@ In most cases, you should do everything in the `ready` event handler.
 Returns:
 
 * `event` Event
-* `launchInfo` Record<string, any> | [NotificationResponse](structures/notification-response.md) _macOS_
+* `launchInfo` Record\<string, any\> | [NotificationResponse](structures/notification-response.md) _macOS_
 
 Emitted once, when Electron has finished initializing. On macOS, `launchInfo`
 holds the `userInfo` of the [`NSUserNotification`](https://developer.apple.com/documentation/foundation/nsusernotification)
@@ -41,6 +40,10 @@ or information from [`UNNotificationResponse`](https://developer.apple.com/docum
 that was used to open the application, if it was launched from Notification Center.
 You can also call `app.isReady()` to check if this event has already fired and `app.whenReady()`
 to get a Promise that is fulfilled when Electron is initialized.
+
+**Note**: The `ready` event is only fired after the main process has finished running the first
+tick of the event loop. If an Electron API needs to be called before the `ready` event, ensure
+that it is called synchronously in the top-level context of the main process.
 
 ### Event: 'window-all-closed'
 
@@ -64,7 +67,7 @@ Calling `event.preventDefault()` will prevent the default behavior, which is
 terminating the application.
 
 **Note:** If application quit was initiated by `autoUpdater.quitAndInstall()`,
-then `before-quit` is emitted *after* emitting `close` event on all windows and
+then `before-quit` is emitted _after_ emitting `close` event on all windows and
 closing them.
 
 **Note:** On Windows, this event will not be emitted if the app is closed due
@@ -128,12 +131,9 @@ Emitted when the user wants to open a URL with the application. Your application
 `Info.plist` file must define the URL scheme within the `CFBundleURLTypes` key, and
 set `NSPrincipalClass` to `AtomApplication`.
 
-You should call `event.preventDefault()` if you want to handle this event.
-
 As with the `open-file` event, be sure to register a listener for the `open-url`
-event early in your application startup to detect if the the application being
-is being opened to handle a URL. If you register the listener in response to a
-`ready` event, you'll miss URLs that trigger the launch of your application.
+event early in your application startup to detect if the application is being opened to handle a URL.
+If you register the listener in response to a `ready` event, you'll miss URLs that trigger the launch of your application.
 
 ### Event: 'activate' _macOS_
 
@@ -153,9 +153,20 @@ Returns:
 
 * `event` Event
 
-Emitted when mac application become active. Difference from `activate` event is
+Emitted when the application becomes active. This differs from the `activate` event in
 that `did-become-active` is emitted every time the app becomes active, not only
-when Dock icon is clicked or application is re-launched.
+when Dock icon is clicked or application is re-launched. It is also emitted when a user
+switches to the app via the macOS App Switcher.
+
+### Event: 'did-resign-active' _macOS_
+
+Returns:
+
+* `event` Event
+
+Emitted when the app is no longer active and doesn’t have focus. This can be triggered,
+for example, by clicking on another application or by using the macOS App Switcher to
+switch to another application.
 
 ### Event: 'continue-activity' _macOS_
 
@@ -288,7 +299,7 @@ Emitted when failed to verify the `certificate` for `url`, to trust the
 certificate you should prevent the default behavior with
 `event.preventDefault()` and call `callback(true)`.
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
@@ -320,7 +331,7 @@ and `callback` can be called with an entry filtered from the list. Using
 `event.preventDefault()` prevents the application from using the first
 certificate from the store.
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.on('select-client-certificate', (event, webContents, url, list, callback) => {
@@ -353,7 +364,7 @@ The default behavior is to cancel all authentications. To override this you
 should prevent the default behavior with `event.preventDefault()` and call
 `callback(username, password)` with the credentials.
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.on('login', (event, webContents, details, authInfo, callback) => {
@@ -370,53 +381,13 @@ page.
 
 Emitted whenever there is a GPU info update.
 
-### Event: 'gpu-process-crashed' _Deprecated_
-
-Returns:
-
-* `event` Event
-* `killed` boolean
-
-Emitted when the GPU process crashes or is killed.
-
-**Deprecated:** This event is superceded by the `child-process-gone` event
-which contains more information about why the child process disappeared. It
-isn't always because it crashed. The `killed` boolean can be replaced by
-checking `reason === 'killed'` when you switch to that event.
-
-### Event: 'renderer-process-crashed' _Deprecated_
-
-Returns:
-
-* `event` Event
-* `webContents` [WebContents](web-contents.md)
-* `killed` boolean
-
-Emitted when the renderer process of `webContents` crashes or is killed.
-
-**Deprecated:** This event is superceded by the `render-process-gone` event
-which contains more information about why the render process disappeared. It
-isn't always because it crashed.  The `killed` boolean can be replaced by
-checking `reason === 'killed'` when you switch to that event.
-
 ### Event: 'render-process-gone'
 
 Returns:
 
 * `event` Event
 * `webContents` [WebContents](web-contents.md)
-* `details` Object
-  * `reason` string - The reason the render process is gone.  Possible values:
-    * `clean-exit` - Process exited with an exit code of zero
-    * `abnormal-exit` - Process exited with a non-zero exit code
-    * `killed` - Process was sent a SIGTERM or otherwise killed externally
-    * `crashed` - Process crashed
-    * `oom` - Process ran out of memory
-    * `launch-failed` - Process never successfully launched
-    * `integrity-failure` - Windows code integrity checks failed
-  * `exitCode` Integer - The exit code of the process, unless `reason` is
-    `launch-failed`, in which case `exitCode` will be a platform-specific
-    launch failure error code.
+* `details` [RenderProcessGoneDetails](structures/render-process-gone-details.md)
 
 Emitted when the renderer process unexpectedly disappears.  This is normally
 because it was crashed or killed.
@@ -473,7 +444,7 @@ Returns:
 
 Emitted when Electron has created a new `session`.
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.on('session-created', (session) => {
@@ -558,7 +529,7 @@ started after current instance exited.
 An example of restarting current instance immediately and adding a new command
 line argument to the new instance:
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.relaunch({ args: process.argv.slice(1).concat(['--relaunch']) })
@@ -754,14 +725,21 @@ This API can be used for purposes such as deciding what language to present the 
 
 Here are some examples of return values of the various language and locale APIs with different configurations:
 
-* For Windows, where the application locale is German, the regional format is Finnish (Finland), and the preferred system languages from most to least preferred are French (Canada), English (US), Simplified Chinese (China), Finnish, and Spanish (Latin America):
-  * `app.getLocale()` returns `'de'`
-  * `app.getSystemLocale()` returns `'fi-FI'`
-  * `app.getPreferredSystemLanguages()` returns `['fr-CA', 'en-US', 'zh-Hans-CN', 'fi', 'es-419']`
-* On macOS, where the application locale is German, the region is Finland, and the preferred system languages from most to least preferred are French (Canada), English (US), Simplified Chinese, and Spanish (Latin America):
-  * `app.getLocale()` returns `'de'`
-  * `app.getSystemLocale()` returns `'fr-FI'`
-  * `app.getPreferredSystemLanguages()` returns `['fr-CA', 'en-US', 'zh-Hans-FI', 'es-419']`
+On Windows, given application locale is German, the regional format is Finnish (Finland), and the preferred system languages from most to least preferred are French (Canada), English (US), Simplified Chinese (China), Finnish, and Spanish (Latin America):
+
+```js
+app.getLocale() // 'de'
+app.getSystemLocale() // 'fi-FI'
+app.getPreferredSystemLanguages() // ['fr-CA', 'en-US', 'zh-Hans-CN', 'fi', 'es-419']
+```
+
+On macOS, given the application locale is German, the region is Finland, and the preferred system languages from most to least preferred are French (Canada), English (US), Simplified Chinese, and Spanish (Latin America):
+
+```js
+app.getLocale() // 'de'
+app.getSystemLocale() // 'fr-FI'
+app.getPreferredSystemLanguages() // ['fr-CA', 'en-US', 'zh-Hans-FI', 'es-419']
+```
 
 Both the available languages and regions and the possible return values differ between the two operating systems.
 
@@ -807,7 +785,7 @@ editor. Please refer to [Apple's documentation][CFBundleURLTypes] for details.
 **Note:** In a Windows Store environment (when packaged as an `appx`) this API
 will return `true` for all calls but the registry key it sets won't be accessible
 by other applications.  In order to register your Windows Store application
-as a default protocol handler you must [declare the protocol in your manifest](https://docs.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-uap-protocol).
+as a default protocol handler you must [declare the protocol in your manifest](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-uap-protocol).
 
 The API uses the Windows Registry and `LSSetDefaultHandlerForURLScheme` internally.
 
@@ -936,7 +914,7 @@ List, nor will it be displayed.
 
 Here's a very simple example of creating a custom Jump List:
 
-```javascript
+```js
 const { app } = require('electron')
 
 app.setJumpList([
@@ -956,7 +934,7 @@ app.setJumpList([
         title: 'Tool A',
         program: process.execPath,
         args: '--run-tool-a',
-        icon: process.execPath,
+        iconPath: process.execPath,
         iconIndex: 0,
         description: 'Runs Tool A'
       },
@@ -965,7 +943,7 @@ app.setJumpList([
         title: 'Tool B',
         program: process.execPath,
         args: '--run-tool-b',
-        icon: process.execPath,
+        iconPath: process.execPath,
         iconIndex: 0,
         description: 'Runs Tool B'
       }
@@ -996,7 +974,7 @@ app.setJumpList([
 
 ### `app.requestSingleInstanceLock([additionalData])`
 
-* `additionalData` Record<any, any> (optional) - A JSON object containing additional data to send to the first instance.
+* `additionalData` Record\<any, any\> (optional) - A JSON object containing additional data to send to the first instance.
 
 Returns `boolean`
 
@@ -1019,8 +997,8 @@ use this method to ensure single instance.
 An example of activating the window of primary instance when a second instance
 starts:
 
-```javascript
-const { app } = require('electron')
+```js
+const { app, BrowserWindow } = require('electron')
 let myWindow = null
 
 const additionalData = { myKey: 'myValue' }
@@ -1040,9 +1018,9 @@ if (!gotTheLock) {
     }
   })
 
-  // Create myWindow, load the rest of the app, etc...
   app.whenReady().then(() => {
-    myWindow = createWindow()
+    myWindow = new BrowserWindow({})
+    myWindow.loadURL('https://electronjs.org')
   })
 }
 ```
@@ -1131,11 +1109,11 @@ indicates success while any other value indicates failure according to Chromium 
     resolver will attempt to use the system's DNS settings to do DNS lookups
     itself. Enabled by default on macOS, disabled by default on Windows and
     Linux.
-  * `secureDnsMode` string (optional) - Can be "off", "automatic" or "secure".
-    Configures the DNS-over-HTTP mode. When "off", no DoH lookups will be
-    performed. When "automatic", DoH lookups will be performed first if DoH is
+  * `secureDnsMode` string (optional) - Can be 'off', 'automatic' or 'secure'.
+    Configures the DNS-over-HTTP mode. When 'off', no DoH lookups will be
+    performed. When 'automatic', DoH lookups will be performed first if DoH is
     available, and insecure DNS lookups will be performed as a fallback. When
-    "secure", only DoH lookups will be performed. Defaults to "automatic".
+    'secure', only DoH lookups will be performed. Defaults to 'automatic'.
   * `secureDnsServers` string[]&#32;(optional) - A list of DNS-over-HTTP
     server templates. See [RFC8484 § 3][] for details on the template format.
     Most servers support the POST method; the template for such servers is
@@ -1165,11 +1143,15 @@ case the user's DNS configuration does not include a provider that supports
 DoH.
 
 ```js
-app.configureHostResolver({
-  secureDnsMode: 'secure',
-  secureDnsServers: [
-    'https://cloudflare-dns.com/dns-query'
-  ]
+const { app } = require('electron')
+
+app.whenReady().then(() => {
+  app.configureHostResolver({
+    secureDnsMode: 'secure',
+    secureDnsServers: [
+      'https://cloudflare-dns.com/dns-query'
+    ]
+  })
 })
 ```
 
@@ -1257,6 +1239,9 @@ On macOS, it shows on the dock icon. On Linux, it only works for Unity launcher.
 **Note:** Unity launcher requires a `.desktop` file to work. For more information,
 please read the [Unity integration documentation][unity-requirement].
 
+**Note:** On macOS, you need to ensure that your application has the permission
+to display notifications for this method to work.
+
 ### `app.getBadgeCount()` _Linux_ _macOS_
 
 Returns `Integer` - The current value displayed in the counter badge.
@@ -1268,10 +1253,10 @@ Returns `boolean` - Whether the current desktop environment is Unity launcher.
 ### `app.getLoginItemSettings([options])` _macOS_ _Windows_
 
 * `options` Object (optional)
-  * `path` string (optional) _Windows_ - The executable path to compare against.
-    Defaults to `process.execPath`.
-  * `args` string[] (optional) _Windows_ - The command-line arguments to compare
-    against. Defaults to an empty array.
+  * `type` string (optional) _macOS_ - Can be one of `mainAppService`, `agentService`, `daemonService`, or `loginItemService`. Defaults to `mainAppService`. Only available on macOS 13 and up. See [app.setLoginItemSettings](app.md#appsetloginitemsettingssettings-macos-windows) for more information about each type.
+  * `serviceName` string (optional) _macOS_ - The name of the service. Required if `type` is non-default. Only available on macOS 13 and up.
+  * `path` string (optional) _Windows_ - The executable path to compare against. Defaults to `process.execPath`.
+  * `args` string[] (optional) _Windows_ - The command-line arguments to compare against. Defaults to an empty array.
 
 If you provided `path` and `args` options to `app.setLoginItemSettings`, then you
 need to pass the same arguments here for `openAtLogin` to be set correctly.
@@ -1279,17 +1264,11 @@ need to pass the same arguments here for `openAtLogin` to be set correctly.
 Returns `Object`:
 
 * `openAtLogin` boolean - `true` if the app is set to open at login.
-* `openAsHidden` boolean _macOS_ - `true` if the app is set to open as hidden at login.
-  This setting is not available on [MAS builds][mas-builds].
-* `wasOpenedAtLogin` boolean _macOS_ - `true` if the app was opened at login
-  automatically. This setting is not available on [MAS builds][mas-builds].
-* `wasOpenedAsHidden` boolean _macOS_ - `true` if the app was opened as a hidden login
-  item. This indicates that the app should not open any windows at startup.
-  This setting is not available on [MAS builds][mas-builds].
-* `restoreState` boolean _macOS_ - `true` if the app was opened as a login item that
-  should restore the state from the previous session. This indicates that the
-  app should restore the windows that were open the last time the app was
-  closed. This setting is not available on [MAS builds][mas-builds].
+* `openAsHidden` boolean _macOS_ _Deprecated_ - `true` if the app is set to open as hidden at login. This does not work on macOS 13 and up.
+* `wasOpenedAtLogin` boolean _macOS_ _Deprecated_ - `true` if the app was opened at login automatically. This setting is not available on [MAS builds][mas-builds] or on macOS 13 and up.
+* `wasOpenedAsHidden` boolean _macOS_ _Deprecated_ - `true` if the app was opened as a hidden login item. This indicates that the app should not open any windows at startup. This setting is not available on [MAS builds][mas-builds] or on macOS 13 and up.
+* `restoreState` boolean _macOS_ _Deprecated_ - `true` if the app was opened as a login item that should restore the state from the previous session. This indicates that the app should restore the windows that were open the last time the app was closed. This setting is not available on [MAS builds][mas-builds] or on macOS 13 and up.
+* `status` string _macOS_ - can be one of `not-registered`, `enabled`, `requires-approval`, or `not-found`.
 * `executableWillLaunchAtLogin` boolean _Windows_ - `true` if app is set to open at login and its run key is not deactivated. This differs from `openAtLogin` as it ignores the `args` option, this property will be true if the given executable would be launched at login with **any** arguments.
 * `launchItems` Object[] _Windows_
   * `name` string _Windows_ - name value of a registry entry.
@@ -1303,10 +1282,13 @@ Returns `Object`:
 * `settings` Object
   * `openAtLogin` boolean (optional) - `true` to open the app at login, `false` to remove
     the app as a login item. Defaults to `false`.
-  * `openAsHidden` boolean (optional) _macOS_ - `true` to open the app as hidden. Defaults to
-    `false`. The user can edit this setting from the System Preferences so
-    `app.getLoginItemSettings().wasOpenedAsHidden` should be checked when the app
-    is opened to know the current value. This setting is not available on [MAS builds][mas-builds].
+  * `openAsHidden` boolean (optional) _macOS_ _Deprecated_ - `true` to open the app as hidden. Defaults to `false`. The user can edit this setting from the System Preferences so `app.getLoginItemSettings().wasOpenedAsHidden` should be checked when the app is opened to know the current value. This setting is not available on [MAS builds][mas-builds] or on macOS 13 and up.
+  * `type` string (optional) _macOS_ - The type of service to add as a login item. Defaults to `mainAppService`. Only available on macOS 13 and up.
+    * `mainAppService` - The primary application.
+    * `agentService` - The property list name for a launch agent. The property list name must correspond to a property list in the app’s `Contents/Library/LaunchAgents` directory.
+    * `daemonService` string (optional) _macOS_ - The property list name for a launch agent. The property list name must correspond to a property list in the app’s `Contents/Library/LaunchDaemons` directory.
+    * `loginItemService` string (optional) _macOS_ - The property list name for a login item service. The property list name must correspond to a property list in the app’s `Contents/Library/LoginItems` directory.
+  * `serviceName` string (optional) _macOS_ - The name of the service. Required if `type` is non-default. Only available on macOS 13 and up.
   * `path` string (optional) _Windows_ - The executable to launch at login.
     Defaults to `process.execPath`.
   * `args` string[] (optional) _Windows_ - The command-line arguments to pass to
@@ -1315,13 +1297,17 @@ Returns `Object`:
   * `enabled` boolean (optional) _Windows_ - `true` will change the startup approved registry key and `enable / disable` the App in Task Manager and Windows Settings.
     Defaults to `true`.
   * `name` string (optional) _Windows_ - value name to write into registry. Defaults to the app's AppUserModelId().
+
 Set the app's login item settings.
 
 To work with Electron's `autoUpdater` on Windows, which uses [Squirrel][Squirrel-Windows],
 you'll want to set the launch path to Update.exe, and pass arguments that specify your
 application name. For example:
 
-``` javascript
+``` js
+const { app } = require('electron')
+const path = require('node:path')
+
 const appFolder = path.dirname(process.execPath)
 const updateExe = path.resolve(appFolder, '..', 'Update.exe')
 const exeName = path.basename(process.execPath)
@@ -1331,10 +1317,12 @@ app.setLoginItemSettings({
   path: updateExe,
   args: [
     '--processStart', `"${exeName}"`,
-    '--process-start-args', `"--hidden"`
+    '--process-start-args', '"--hidden"'
   ]
 })
 ```
+
+For more information about setting different services as login items on macOS 13 and up, see [`SMAppService`](https://developer.apple.com/documentation/servicemanagement/smappservice?language=objc).
 
 ### `app.isAccessibilitySupportEnabled()` _macOS_ _Windows_
 
@@ -1357,7 +1345,7 @@ This API must be called after the `ready` event is emitted.
 
 ### `app.showAboutPanel()`
 
-Show the app's about panel options. These options can be overridden with `app.setAboutPanelOptions(options)`.
+Show the app's about panel options. These options can be overridden with `app.setAboutPanelOptions(options)`. This function runs asynchronously.
 
 ### `app.setAboutPanelOptions(options)`
 
@@ -1390,11 +1378,22 @@ Show the platform's native emoji picker.
 Returns `Function` - This function **must** be called once you have finished accessing the security scoped file. If you do not remember to stop accessing the bookmark, [kernel resources will be leaked](https://developer.apple.com/reference/foundation/nsurl/1417051-startaccessingsecurityscopedreso?language=objc) and your app will lose its ability to reach outside the sandbox completely, until your app is restarted.
 
 ```js
-// Start accessing the file.
-const stopAccessingSecurityScopedResource = app.startAccessingSecurityScopedResource(data)
-// You can now access the file outside of the sandbox 🎉
+const { app, dialog } = require('electron')
+const fs = require('node:fs')
 
-// Remember to stop accessing the file once you've finished with it.
+let filepath
+let bookmark
+
+dialog.showOpenDialog(null, { securityScopedBookmarks: true }).then(({ filePaths, bookmarks }) => {
+  filepath = filePaths[0]
+  bookmark = bookmarks[0]
+  fs.readFileSync(filepath)
+})
+
+// ... restart app ...
+
+const stopAccessingSecurityScopedResource = app.startAccessingSecurityScopedResource(bookmark)
+fs.readFileSync(filepath)
 stopAccessingSecurityScopedResource()
 ```
 
@@ -1402,7 +1401,7 @@ Start accessing a security scoped resource. With this method Electron applicatio
 
 ### `app.enableSandbox()`
 
-Enables full sandbox mode on the app. This means that all renderers will be launched sandboxed, regardless of the value of the `sandbox` flag in WebPreferences.
+Enables full sandbox mode on the app. This means that all renderers will be launched sandboxed, regardless of the value of the `sandbox` flag in [`WebPreferences`](structures/web-preferences.md).
 
 This method can only be called before app is ready.
 
@@ -1435,6 +1434,8 @@ By default, if an app of the same name as the one being moved exists in the Appl
 For example:
 
 ```js
+const { app, dialog } = require('electron')
+
 app.moveToApplicationsFolder({
   conflictHandler: (conflictType) => {
     if (conflictType === 'exists') {
@@ -1469,6 +1470,24 @@ See [Apple's documentation](https://developer.apple.com/library/archive/technote
 details.
 
 **Note:** Enable `Secure Keyboard Entry` only when it is needed and disable it when it is no longer needed.
+
+### `app.setProxy(config)`
+
+* `config` [ProxyConfig](structures/proxy-config.md)
+
+Returns `Promise<void>` - Resolves when the proxy setting process is complete.
+
+Sets the proxy settings for networks requests made without an associated [Session](session.md).
+Currently this will affect requests made with [Net](net.md) in the [utility process](../glossary.md#utility-process)
+and internal requests made by the runtime (ex: geolocation queries).
+
+This method can only be called after app is ready.
+
+#### `app.resolveProxy(url)`
+
+* `url` URL
+
+Returns `Promise<string>` - Resolves with the proxy information for `url` that will be used when attempting to make requests using [Net](net.md) in the [utility process](../glossary.md#utility-process).
 
 ## Properties
 
@@ -1513,18 +1532,18 @@ dock on macOS.
 
 A `boolean` property that returns  `true` if the app is packaged, `false` otherwise. For many apps, this property can be used to distinguish development and production environments.
 
-[tasks]:https://msdn.microsoft.com/en-us/library/windows/desktop/dd378460(v=vs.85).aspx#tasks
-[app-user-model-id]: https://msdn.microsoft.com/en-us/library/windows/desktop/dd378459(v=vs.85).aspx
+[tasks]:https://learn.microsoft.com/en-us/windows/win32/shell/taskbar-extensions#tasks
+[app-user-model-id]: https://learn.microsoft.com/en-us/windows/win32/shell/appids
 [electron-forge]: https://www.electronforge.io/
-[electron-packager]: https://github.com/electron/electron-packager
+[electron-packager]: https://github.com/electron/packager
 [CFBundleURLTypes]: https://developer.apple.com/library/ios/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html#//apple_ref/doc/uid/TP40009249-102207-TPXREF115
-[LSCopyDefaultHandlerForURLScheme]: https://developer.apple.com/library/mac/documentation/Carbon/Reference/LaunchServicesReference/#//apple_ref/c/func/LSCopyDefaultHandlerForURLScheme
+[LSCopyDefaultHandlerForURLScheme]: https://developer.apple.com/documentation/coreservices/1441725-lscopydefaulthandlerforurlscheme?language=objc
 [handoff]: https://developer.apple.com/library/ios/documentation/UserExperience/Conceptual/Handoff/HandoffFundamentals/HandoffFundamentals.html
 [activity-type]: https://developer.apple.com/library/ios/documentation/Foundation/Reference/NSUserActivity_Class/index.html#//apple_ref/occ/instp/NSUserActivity/activityType
 [unity-requirement]: https://help.ubuntu.com/community/UnityLaunchersAndDesktopFiles#Adding_shortcuts_to_a_launcher
 [mas-builds]: ../tutorial/mac-app-store-submission-guide.md
 [Squirrel-Windows]: https://github.com/Squirrel/Squirrel.Windows
-[JumpListBeginListMSDN]: https://msdn.microsoft.com/en-us/library/windows/desktop/dd378398(v=vs.85).aspx
+[JumpListBeginListMSDN]: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icustomdestinationlist-beginlist
 [about-panel-options]: https://developer.apple.com/reference/appkit/nsapplication/1428479-orderfrontstandardaboutpanelwith?language=objc
 
 ### `app.name`
@@ -1544,19 +1563,6 @@ This is the user agent that will be used when no user agent is set at the
 `webContents` or `session` level.  It is useful for ensuring that your entire
 app has the same user agent.  Set to a custom value as early as possible
 in your app's initialization to ensure that your overridden value is used.
-
-### `app.runningUnderRosettaTranslation` _macOS_ _Readonly_ _Deprecated_
-
-A `boolean` which when `true` indicates that the app is currently running
-under the [Rosetta Translator Environment](https://en.wikipedia.org/wiki/Rosetta_(software)).
-
-You can use this property to prompt users to download the arm64 version of
-your application when they are running the x64 version under Rosetta
-incorrectly.
-
-**Deprecated:** This property is superceded by the `runningUnderARM64Translation`
-property which detects when the app is being translated to ARM64 in both macOS
-and Windows.
 
 ### `app.runningUnderARM64Translation` _Readonly_ _macOS_ _Windows_
 

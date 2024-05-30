@@ -5,14 +5,17 @@
 #ifndef ELECTRON_SHELL_BROWSER_API_ELECTRON_API_SESSION_H_
 #define ELECTRON_SHELL_BROWSER_API_ELECTRON_API_SESSION_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "content/public/browser/download_manager.h"
 #include "electron/buildflags/buildflags.h"
 #include "gin/handle.h"
 #include "gin/wrappable.h"
+#include "services/network/public/mojom/host_resolver.mojom.h"
 #include "services/network/public/mojom/ssl_config.mojom.h"
 #include "shell/browser/event_emitter_mixin.h"
 #include "shell/browser/net/resolve_proxy_helper.h"
@@ -62,12 +65,12 @@ class Session : public gin::Wrappable<Session>,
                 public gin_helper::EventEmitterMixin<Session>,
                 public gin_helper::CleanedUpAtExit,
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
-                public SpellcheckHunspellDictionary::Observer,
+                private SpellcheckHunspellDictionary::Observer,
 #endif
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
-                public extensions::ExtensionRegistryObserver,
+                private extensions::ExtensionRegistryObserver,
 #endif
-                public content::DownloadManager::Observer {
+                private content::DownloadManager::Observer {
  public:
   // Gets or creates Session from the |browser_context|.
   static gin::Handle<Session> CreateFrom(
@@ -82,14 +85,24 @@ class Session : public gin::Wrappable<Session>,
                                             const std::string& partition,
                                             base::Value::Dict options = {});
 
+  // Gets the Session based on |path|.
+  static std::optional<gin::Handle<Session>> FromPath(
+      v8::Isolate* isolate,
+      const base::FilePath& path,
+      base::Value::Dict options = {});
+
   ElectronBrowserContext* browser_context() const { return browser_context_; }
 
   // gin::Wrappable
   static gin::WrapperInfo kWrapperInfo;
   static void FillObjectTemplate(v8::Isolate*, v8::Local<v8::ObjectTemplate>);
+  static const char* GetClassName() { return "Session"; }
   const char* GetTypeName() override;
 
   // Methods.
+  v8::Local<v8::Promise> ResolveHost(
+      std::string host,
+      std::optional<network::mojom::ResolveHostParametersPtr> params);
   v8::Local<v8::Promise> ResolveProxy(gin::Arguments* args);
   v8::Local<v8::Promise> GetCacheSize();
   v8::Local<v8::Promise> ClearCache();
@@ -107,6 +120,8 @@ class Session : public gin::Wrappable<Session>,
                                  gin::Arguments* args);
   void SetDevicePermissionHandler(v8::Local<v8::Value> val,
                                   gin::Arguments* args);
+  void SetUSBProtectedClassesHandler(v8::Local<v8::Value> val,
+                                     gin::Arguments* args);
   void SetBluetoothPairingHandler(v8::Local<v8::Value> val,
                                   gin::Arguments* args);
   v8::Local<v8::Promise> ClearHostResolverCache(gin::Arguments* args);
@@ -118,7 +133,7 @@ class Session : public gin::Wrappable<Session>,
   bool IsPersistent();
   v8::Local<v8::Promise> GetBlobData(v8::Isolate* isolate,
                                      const std::string& uuid);
-  void DownloadURL(const GURL& url);
+  void DownloadURL(const GURL& url, gin::Arguments* args);
   void CreateInterruptedDownload(const gin_helper::Dictionary& options);
   void SetPreloads(const std::vector<base::FilePath>& preloads);
   std::vector<base::FilePath> GetPreloads() const;
@@ -132,6 +147,8 @@ class Session : public gin::Wrappable<Session>,
   v8::Local<v8::Value> GetPath(v8::Isolate* isolate);
   void SetCodeCachePath(gin::Arguments* args);
   v8::Local<v8::Promise> ClearCodeCaches(const gin_helper::Dictionary& options);
+  v8::Local<v8::Value> ClearData(gin_helper::ErrorThrower thrower,
+                                 gin::Arguments* args);
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
   base::Value GetSpellCheckerLanguages();
   void SetSpellCheckerLanguages(gin_helper::ErrorThrower thrower,
@@ -193,12 +210,12 @@ class Session : public gin::Wrappable<Session>,
   v8::Global<v8::Value> service_worker_context_;
   v8::Global<v8::Value> web_request_;
 
-  v8::Isolate* isolate_;
+  raw_ptr<v8::Isolate> isolate_;
 
   // The client id to enable the network throttler.
   base::UnguessableToken network_emulation_token_;
 
-  ElectronBrowserContext* browser_context_;
+  raw_ptr<ElectronBrowserContext> browser_context_;
 };
 
 }  // namespace api

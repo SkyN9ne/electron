@@ -27,6 +27,9 @@ class ElectronDesktopNativeWidgetAura : public views::DesktopNativeWidgetAura {
 
   // views::DesktopNativeWidgetAura:
   void InitNativeWidget(views::Widget::InitParams params) override;
+#if BUILDFLAG(IS_WIN)
+  void OnSizeConstraintsChanged() override;
+#endif
 
   // internal::NativeWidgetPrivate:
   void Activate() override;
@@ -36,10 +39,10 @@ class ElectronDesktopNativeWidgetAura : public views::DesktopNativeWidgetAura {
                          aura::Window* gained_active,
                          aura::Window* lost_active) override;
 
-  NativeWindowViews* native_window_view_;
+  raw_ptr<NativeWindowViews> native_window_view_;
 
   // Owned by DesktopNativeWidgetAura.
-  views::DesktopWindowTreeHost* desktop_window_tree_host_;
+  raw_ptr<views::DesktopWindowTreeHost> desktop_window_tree_host_;
 };
 
 }  // namespace electron

@@ -86,13 +86,13 @@ module.exports = {
       config: {
         repository: {
           owner: 'github-user-name',
-          name: 'github-repo-name',
+          name: 'github-repo-name'
         },
         prerelease: false,
-        draft: true,
-      },
-    },
-  ],
+        draft: true
+      }
+    }
+  ]
 }
 ```
 
@@ -152,7 +152,7 @@ command that can handle the version bumping and tagging for you.
 #### Bonus: Publishing in GitHub Actions
 
 Publishing locally can be painful, especially because you can only create distributables
-for your host operating system (i.e. you can't publish a Window `.exe` file from macOS).
+for your host operating system (i.e. you can't publish a Windows `.exe` file from macOS).
 
 A solution for this would be to publish your app via automation workflows
 such as [GitHub Actions][], which can run tasks in the
@@ -188,7 +188,7 @@ npm install update-electron-app
 
 Then, import the module and call it immediately in the main process.
 
-```js title='main.js'
+```js title='main.js' @ts-nocheck
 require('update-electron-app')()
 ```
 
@@ -221,7 +221,7 @@ rest of our docs and happy developing! If you have questions, please stop by our
 [autoupdater]: ../api/auto-updater.md
 [code-signed]: ./code-signing.md
 [discord server]: https://discord.gg/electronjs
-[electron fiddle]: https://electronjs.org/fiddle
+[electron fiddle]: https://www.electronjs.org/fiddle
 [fiddle-build]: https://github.com/electron/fiddle/blob/main/.github/workflows/build.yaml
 [fiddle-forge-config]: https://github.com/electron/fiddle/blob/main/forge.config.js
 [github actions]: https://github.com/features/actions
@@ -231,7 +231,7 @@ rest of our docs and happy developing! If you have questions, please stop by our
 [new-pat]: https://github.com/settings/tokens/new
 [publish command]: https://www.electronforge.io/cli#publish
 [publisher]: https://www.electronforge.io/config/publishers
-[`publishergithubconfig`]: https://js.electronforge.io/publisher/github/interfaces/publishergithubconfig
+[`publishergithubconfig`]: https://js.electronforge.io/interfaces/_electron_forge_publisher_github.PublisherGitHubConfig.html
 [`update-electron-app`]: https://github.com/electron/update-electron-app
 [update-server]: ./updates.md
 

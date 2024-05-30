@@ -7,7 +7,6 @@
 #include <dlfcn.h>
 #include <gtk/gtk.h>
 
-#include <memory>
 #include <string>
 
 #include "base/environment.h"
@@ -15,7 +14,7 @@
 
 // Unity data typedefs.
 typedef struct _UnityInspector UnityInspector;
-typedef UnityInspector* (*unity_inspector_get_default_func)(void);
+typedef UnityInspector* (*unity_inspector_get_default_func)();
 typedef gboolean (*unity_inspector_get_unity_running_func)(
     UnityInspector* self);
 
@@ -52,20 +51,9 @@ unity_launcher_entry_set_progress_visible_func entry_set_progress_visible =
     nullptr;
 
 void EnsureLibUnityLoaded() {
-  using base::nix::GetDesktopEnvironment;
-
   if (attempted_load)
     return;
   attempted_load = true;
-
-  auto env = base::Environment::Create();
-  base::nix::DesktopEnvironment desktop_env = GetDesktopEnvironment(env.get());
-
-  // The "icon-tasks" KDE task manager also honors Unity Launcher API.
-  if (desktop_env != base::nix::DESKTOP_ENVIRONMENT_UNITY &&
-      desktop_env != base::nix::DESKTOP_ENVIRONMENT_KDE4 &&
-      desktop_env != base::nix::DESKTOP_ENVIRONMENT_KDE5)
-    return;
 
   // Ubuntu still hasn't given us a nice libunity.so symlink.
   void* unity_lib = dlopen("libunity.so.4", RTLD_LAZY);

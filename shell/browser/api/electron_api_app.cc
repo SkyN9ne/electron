@@ -5,11 +5,14 @@
 #include "shell/browser/api/electron_api_app.h"
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "base/command_line.h"
+#include "base/containers/fixed_flat_map.h"
 #include "base/containers/span.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
@@ -18,10 +21,14 @@
 #include "base/path_service.h"
 #include "base/system/sys_info.h"
 #include "base/values.h"
+#include "base/win/windows_version.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/icon_manager.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
+#include "components/proxy_config/proxy_config_dictionary.h"
+#include "components/proxy_config/proxy_config_pref_names.h"
+#include "components/proxy_config/proxy_prefs.h"
 #include "content/browser/gpu/compositor_util.h"        // nogncheck
 #include "content/browser/gpu/gpu_data_manager_impl.h"  // nogncheck
 #include "content/public/browser/browser_accessibility_state.h"
@@ -73,7 +80,6 @@
 #include "shell/common/platform_util.h"
 #include "shell/common/thread_restrictions.h"
 #include "shell/common/v8_value_serializer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/image/image.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -140,40 +146,25 @@ struct Converter<JumpListItem::Type> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      JumpListItem::Type* out) {
-    std::string item_type;
-    if (!ConvertFromV8(isolate, val, &item_type))
-      return false;
-
-    if (item_type == "task")
-      *out = JumpListItem::Type::kTask;
-    else if (item_type == "separator")
-      *out = JumpListItem::Type::kSeparator;
-    else if (item_type == "file")
-      *out = JumpListItem::Type::kFile;
-    else
-      return false;
-
-    return true;
+    return FromV8WithLookup(isolate, val, Lookup, out);
   }
 
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    JumpListItem::Type val) {
-    std::string item_type;
-    switch (val) {
-      case JumpListItem::Type::kTask:
-        item_type = "task";
-        break;
+    for (const auto& [name, item_val] : Lookup)
+      if (item_val == val)
+        return gin::ConvertToV8(isolate, name);
 
-      case JumpListItem::Type::kSeparator:
-        item_type = "separator";
-        break;
-
-      case JumpListItem::Type::kFile:
-        item_type = "file";
-        break;
-    }
-    return gin::ConvertToV8(isolate, item_type);
+    return gin::ConvertToV8(isolate, "");
   }
+
+ private:
+  static constexpr auto Lookup =
+      base::MakeFixedFlatMap<std::string_view, JumpListItem::Type>({
+          {"file", JumpListItem::Type::kFile},
+          {"separator", JumpListItem::Type::kSeparator},
+          {"task", JumpListItem::Type::kTask},
+      });
 };
 
 template <>
@@ -216,7 +207,7 @@ struct Converter<JumpListItem> {
 
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    const JumpListItem& val) {
-    gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
+    auto dict = gin_helper::Dictionary::CreateEmpty(isolate);
     dict.Set("type", val.type);
 
     switch (val.type) {
@@ -246,46 +237,26 @@ struct Converter<JumpListCategory::Type> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      JumpListCategory::Type* out) {
-    std::string category_type;
-    if (!ConvertFromV8(isolate, val, &category_type))
-      return false;
-
-    if (category_type == "tasks")
-      *out = JumpListCategory::Type::kTasks;
-    else if (category_type == "frequent")
-      *out = JumpListCategory::Type::kFrequent;
-    else if (category_type == "recent")
-      *out = JumpListCategory::Type::kRecent;
-    else if (category_type == "custom")
-      *out = JumpListCategory::Type::kCustom;
-    else
-      return false;
-
-    return true;
+    return FromV8WithLookup(isolate, val, Lookup, out);
   }
 
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    JumpListCategory::Type val) {
-    std::string category_type;
-    switch (val) {
-      case JumpListCategory::Type::kTasks:
-        category_type = "tasks";
-        break;
+    for (const auto& [name, type_val] : Lookup)
+      if (type_val == val)
+        return gin::ConvertToV8(isolate, name);
 
-      case JumpListCategory::Type::kFrequent:
-        category_type = "frequent";
-        break;
-
-      case JumpListCategory::Type::kRecent:
-        category_type = "recent";
-        break;
-
-      case JumpListCategory::Type::kCustom:
-        category_type = "custom";
-        break;
-    }
-    return gin::ConvertToV8(isolate, category_type);
+    return gin::ConvertToV8(isolate, "");
   }
+
+ private:
+  static constexpr auto Lookup =
+      base::MakeFixedFlatMap<std::string_view, JumpListCategory::Type>({
+          {"custom", JumpListCategory::Type::kCustom},
+          {"frequent", JumpListCategory::Type::kFrequent},
+          {"recent", JumpListCategory::Type::kRecent},
+          {"tasks", JumpListCategory::Type::kTasks},
+      });
 };
 
 template <>
@@ -352,74 +323,6 @@ struct Converter<JumpListResult> {
 };
 #endif
 
-#if BUILDFLAG(IS_WIN)
-template <>
-struct Converter<Browser::LaunchItem> {
-  static bool FromV8(v8::Isolate* isolate,
-                     v8::Local<v8::Value> val,
-                     Browser::LaunchItem* out) {
-    gin_helper::Dictionary dict;
-    if (!ConvertFromV8(isolate, val, &dict))
-      return false;
-
-    dict.Get("name", &(out->name));
-    dict.Get("path", &(out->path));
-    dict.Get("args", &(out->args));
-    dict.Get("scope", &(out->scope));
-    dict.Get("enabled", &(out->enabled));
-    return true;
-  }
-
-  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
-                                   Browser::LaunchItem val) {
-    gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
-    dict.Set("name", val.name);
-    dict.Set("path", val.path);
-    dict.Set("args", val.args);
-    dict.Set("scope", val.scope);
-    dict.Set("enabled", val.enabled);
-    return dict.GetHandle();
-  }
-};
-#endif
-
-template <>
-struct Converter<Browser::LoginItemSettings> {
-  static bool FromV8(v8::Isolate* isolate,
-                     v8::Local<v8::Value> val,
-                     Browser::LoginItemSettings* out) {
-    gin_helper::Dictionary dict;
-    if (!ConvertFromV8(isolate, val, &dict))
-      return false;
-
-    dict.Get("openAtLogin", &(out->open_at_login));
-    dict.Get("openAsHidden", &(out->open_as_hidden));
-    dict.Get("path", &(out->path));
-    dict.Get("args", &(out->args));
-#if BUILDFLAG(IS_WIN)
-    dict.Get("enabled", &(out->enabled));
-    dict.Get("name", &(out->name));
-#endif
-    return true;
-  }
-
-  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
-                                   Browser::LoginItemSettings val) {
-    gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
-    dict.Set("openAtLogin", val.open_at_login);
-    dict.Set("openAsHidden", val.open_as_hidden);
-    dict.Set("restoreState", val.restore_state);
-    dict.Set("wasOpenedAtLogin", val.opened_at_login);
-    dict.Set("wasOpenedAsHidden", val.opened_as_hidden);
-#if BUILDFLAG(IS_WIN)
-    dict.Set("launchItems", val.launch_items);
-    dict.Set("executableWillLaunchAtLogin",
-             val.executable_will_launch_at_login);
-#endif
-    return dict.GetHandle();
-  }
-};
-
 template <>
 struct Converter<content::CertificateRequestResultType> {
   static bool FromV8(v8::Isolate* isolate,
@@ -439,20 +342,13 @@ struct Converter<net::SecureDnsMode> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      net::SecureDnsMode* out) {
-    std::string s;
-    if (!ConvertFromV8(isolate, val, &s))
-      return false;
-    if (s == "off") {
-      *out = net::SecureDnsMode::kOff;
-      return true;
-    } else if (s == "automatic") {
-      *out = net::SecureDnsMode::kAutomatic;
-      return true;
-    } else if (s == "secure") {
-      *out = net::SecureDnsMode::kSecure;
-      return true;
-    }
-    return false;
+    static constexpr auto Lookup =
+        base::MakeFixedFlatMap<std::string_view, net::SecureDnsMode>({
+            {"automatic", net::SecureDnsMode::kAutomatic},
+            {"off", net::SecureDnsMode::kOff},
+            {"secure", net::SecureDnsMode::kSecure},
+        });
+    return FromV8WithLookup(isolate, val, Lookup, out);
   }
 };
 }  // namespace gin
@@ -473,74 +369,61 @@ IconLoader::IconSize GetIconSizeByString(const std::string& size) {
 }
 
 // Return the path constant from string.
-int GetPathConstant(const std::string& name) {
-  if (name == "appData")
-    return DIR_APP_DATA;
-  else if (name == "sessionData")
-    return DIR_SESSION_DATA;
-  else if (name == "userData")
-    return chrome::DIR_USER_DATA;
-  else if (name == "cache")
+int GetPathConstant(std::string_view name) {
+  // clang-format off
+  constexpr auto Lookup = base::MakeFixedFlatMap<std::string_view, int>({
+      {"appData", DIR_APP_DATA},
 #if BUILDFLAG(IS_POSIX)
-    return base::DIR_CACHE;
+      {"cache", base::DIR_CACHE},
 #else
-    return base::DIR_ROAMING_APP_DATA;
+      {"cache", base::DIR_ROAMING_APP_DATA},
 #endif
-  else if (name == "userCache")
-    return DIR_USER_CACHE;
-  else if (name == "logs")
-    return DIR_APP_LOGS;
-  else if (name == "crashDumps")
-    return DIR_CRASH_DUMPS;
-  else if (name == "home")
-    return base::DIR_HOME;
-  else if (name == "temp")
-    return base::DIR_TEMP;
-  else if (name == "userDesktop" || name == "desktop")
-    return base::DIR_USER_DESKTOP;
-  else if (name == "exe")
-    return base::FILE_EXE;
-  else if (name == "module")
-    return base::FILE_MODULE;
-  else if (name == "documents")
-    return chrome::DIR_USER_DOCUMENTS;
-  else if (name == "downloads")
-    return chrome::DIR_DEFAULT_DOWNLOADS;
-  else if (name == "music")
-    return chrome::DIR_USER_MUSIC;
-  else if (name == "pictures")
-    return chrome::DIR_USER_PICTURES;
-  else if (name == "videos")
-    return chrome::DIR_USER_VIDEOS;
+      {"crashDumps", DIR_CRASH_DUMPS},
+      {"desktop", base::DIR_USER_DESKTOP},
+      {"documents", chrome::DIR_USER_DOCUMENTS},
+      {"downloads", chrome::DIR_DEFAULT_DOWNLOADS},
+      {"exe", base::FILE_EXE},
+      {"home", base::DIR_HOME},
+      {"logs", DIR_APP_LOGS},
+      {"module", base::FILE_MODULE},
+      {"music", chrome::DIR_USER_MUSIC},
+      {"pictures", chrome::DIR_USER_PICTURES},
 #if BUILDFLAG(IS_WIN)
-  else if (name == "recent")
-    return electron::DIR_RECENT;
+      {"recent", electron::DIR_RECENT},
 #endif
-  else
-    return -1;
+      {"sessionData", DIR_SESSION_DATA},
+      {"temp", base::DIR_TEMP},
+      {"userCache", DIR_USER_CACHE},
+      {"userData", chrome::DIR_USER_DATA},
+      {"userDesktop", base::DIR_USER_DESKTOP},
+      {"videos", chrome::DIR_USER_VIDEOS},
+  });
+  // clang-format on
+  const auto* iter = Lookup.find(name);
+  return iter != Lookup.end() ? iter->second : -1;
 }
 
 bool NotificationCallbackWrapper(
     const base::RepeatingCallback<
-        void(const base::CommandLine& command_line,
+        void(base::CommandLine command_line,
              const base::FilePath& current_directory,
-             const std::vector<const uint8_t> additional_data)>& callback,
-    const base::CommandLine& cmd,
+             const std::vector<uint8_t> additional_data)>& callback,
+    base::CommandLine cmd,
     const base::FilePath& cwd,
-    const std::vector<const uint8_t> additional_data) {
+    const std::vector<uint8_t> additional_data) {
   // Make sure the callback is called after app gets ready.
   if (Browser::Get()->is_ready()) {
-    callback.Run(cmd, cwd, std::move(additional_data));
+    callback.Run(std::move(cmd), cwd, std::move(additional_data));
   } else {
     scoped_refptr<base::SingleThreadTaskRunner> task_runner(
         base::SingleThreadTaskRunner::GetCurrentDefault());
 
     // Make a copy of the span so that the data isn't lost.
-    task_runner->PostTask(FROM_HERE,
-                          base::BindOnce(base::IgnoreResult(callback), cmd, cwd,
-                                         std::move(additional_data)));
+    task_runner->PostTask(
+        FROM_HERE, base::BindOnce(base::IgnoreResult(callback), std::move(cmd),
+                                  cwd, std::move(additional_data)));
   }
-  // ProcessSingleton needs to know whether current process is quiting.
+  // ProcessSingleton needs to know whether current process is quitting.
   return !Browser::Get()->is_shutting_down();
 }
 
@@ -579,8 +462,7 @@ void OnClientCertificateSelected(
     return;
 
   auto certs = net::X509Certificate::CreateCertificateListFromBytes(
-      base::as_bytes(base::make_span(data.c_str(), data.size())),
-      net::X509Certificate::FORMAT_AUTO);
+      base::as_bytes(base::make_span(data)), net::X509Certificate::FORMAT_AUTO);
   if (!certs.empty()) {
     scoped_refptr<net::X509Certificate> cert(certs[0].get());
     for (auto& identity : *identities) {
@@ -607,13 +489,13 @@ int ImportIntoCertStore(CertificateManagerModel* model, base::Value options) {
   net::ScopedCERTCertificateList imported_certs;
   int rv = -1;
 
-  std::string* cert_path_ptr = options.FindStringKey("certificate");
-  if (cert_path_ptr)
-    cert_path = *cert_path_ptr;
+  if (const base::Value::Dict* dict = options.GetIfDict(); dict != nullptr) {
+    if (const std::string* str = dict->FindString("certificate"); str)
+      cert_path = *str;
 
-  std::string* pwd = options.FindStringKey("password");
-  if (pwd)
-    password = base::UTF8ToUTF16(*pwd);
+    if (const std::string* str = dict->FindString("password"); str)
+      password = base::UTF8ToUTF16(*str);
+  }
 
   if (!cert_path.empty()) {
     if (base::ReadFileToString(base::FilePath(cert_path), &file_data)) {
@@ -787,6 +669,10 @@ void App::OnNewWindowForTab() {
 void App::OnDidBecomeActive() {
   Emit("did-become-active");
 }
+
+void App::OnDidResignActive() {
+  Emit("did-resign-active");
+}
 #endif
 
 bool App::CanCreateWindow(
@@ -843,6 +729,7 @@ void App::AllowCertificateError(
 }
 
 base::OnceClosure App::SelectClientCertificate(
+    content::BrowserContext* browser_context,
     content::WebContents* web_contents,
     net::SSLCertRequestInfo* cert_request_info,
     net::ClientCertIdentityList identities,
@@ -881,10 +768,6 @@ base::OnceClosure App::SelectClientCertificate(
 
 void App::OnGpuInfoUpdate() {
   Emit("gpu-info-update");
-}
-
-void App::OnGpuProcessCrashed() {
-  Emit("gpu-process-crashed", true);
 }
 
 void App::BrowserChildProcessLaunchedAndConnected(
@@ -972,7 +855,7 @@ void App::SetAppPath(const base::FilePath& app_path) {
 
 #if !BUILDFLAG(IS_MAC)
 void App::SetAppLogsPath(gin_helper::ErrorThrower thrower,
-                         absl::optional<base::FilePath> custom_path) {
+                         std::optional<base::FilePath> custom_path) {
   if (custom_path.has_value()) {
     if (!custom_path->IsAbsolute()) {
       thrower.ThrowError("Path must be absolute");
@@ -1101,9 +984,9 @@ std::string App::GetLocaleCountryCode() {
   return region.size() == 2 ? region : std::string();
 }
 
-void App::OnSecondInstance(const base::CommandLine& cmd,
+void App::OnSecondInstance(base::CommandLine cmd,
                            const base::FilePath& cwd,
-                           const std::vector<const uint8_t> additional_data) {
+                           const std::vector<uint8_t> additional_data) {
   v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Value> data_value =
@@ -1257,8 +1140,8 @@ void App::SetAccessibilitySupportEnabled(gin_helper::ErrorThrower thrower,
   Browser::Get()->OnAccessibilitySupportChanged();
 }
 
-Browser::LoginItemSettings App::GetLoginItemSettings(gin::Arguments* args) {
-  Browser::LoginItemSettings options;
+v8::Local<v8::Value> App::GetLoginItemSettings(gin::Arguments* args) {
+  LoginItemSettings options;
   args->GetNext(&options);
   return Browser::Get()->GetLoginItemSettings(options);
 }
@@ -1272,13 +1155,10 @@ void App::ImportCertificate(gin_helper::ErrorThrower thrower,
     return;
   }
 
-  auto* browser_context = ElectronBrowserContext::From("", false);
   if (!certificate_manager_model_) {
-    CertificateManagerModel::Create(
-        browser_context,
-        base::BindOnce(&App::OnCertificateManagerModelCreated,
-                       base::Unretained(this), std::move(options),
-                       std::move(callback)));
+    CertificateManagerModel::Create(base::BindOnce(
+        &App::OnCertificateManagerModelCreated, base::Unretained(this),
+        std::move(options), std::move(callback)));
     return;
   }
 
@@ -1312,7 +1192,7 @@ v8::Local<v8::Value> App::GetJumpListSettings() {
   }
 
   v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
-  gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
+  auto dict = gin_helper::Dictionary::CreateEmpty(isolate);
   dict.Set("minItems", min_items);
   dict.Set("removedItems", gin::ConvertToV8(isolate, removed_items));
   return dict.GetHandle();
@@ -1325,7 +1205,7 @@ JumpListResult App::SetJumpList(v8::Local<v8::Value> val,
   if (!delete_jump_list &&
       !gin::ConvertFromV8(args->isolate(), val, &categories)) {
     gin_helper::ErrorThrower(args->isolate())
-        .ThrowError("Argument must be null or an array of categories");
+        .ThrowTypeError("Argument must be null or an array of categories");
     return JumpListResult::kArgumentError;
   }
 
@@ -1393,15 +1273,13 @@ std::vector<gin_helper::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
   int processor_count = base::SysInfo::NumberOfProcessors();
 
   for (const auto& process_metric : app_metrics_) {
-    gin_helper::Dictionary pid_dict = gin::Dictionary::CreateEmpty(isolate);
-    gin_helper::Dictionary cpu_dict = gin::Dictionary::CreateEmpty(isolate);
+    auto pid_dict = gin_helper::Dictionary::CreateEmpty(isolate);
+    auto cpu_dict = gin_helper::Dictionary::CreateEmpty(isolate);
 
-    pid_dict.SetHidden("simple", true);
-    cpu_dict.SetHidden("simple", true);
-    cpu_dict.Set(
-        "percentCPUUsage",
-        process_metric.second->metrics->GetPlatformIndependentCPUUsage() /
-            processor_count);
+    double usage =
+        process_metric.second->metrics->GetPlatformIndependentCPUUsage()
+            .value_or(0);
+    cpu_dict.Set("percentCPUUsage", usage / processor_count);
 
 #if !BUILDFLAG(IS_WIN)
     cpu_dict.Set("idleWakeupsPerSecond",
@@ -1417,8 +1295,8 @@ std::vector<gin_helper::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
     pid_dict.Set("pid", process_metric.second->process.Pid());
     pid_dict.Set("type", content::GetProcessTypeNameInEnglish(
                              process_metric.second->type));
-    pid_dict.Set("creationTime",
-                 process_metric.second->process.CreationTime().ToJsTime());
+    pid_dict.Set("creationTime", process_metric.second->process.CreationTime()
+                                     .InMillisecondsFSinceUnixEpoch());
 
     if (!process_metric.second->service_name.empty()) {
       pid_dict.Set("serviceName", process_metric.second->service_name);
@@ -1431,8 +1309,7 @@ std::vector<gin_helper::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
 #if !BUILDFLAG(IS_LINUX)
     auto memory_info = process_metric.second->GetMemoryInfo();
 
-    gin_helper::Dictionary memory_dict = gin::Dictionary::CreateEmpty(isolate);
-    memory_dict.SetHidden("simple", true);
+    auto memory_dict = gin_helper::Dictionary::CreateEmpty(isolate);
     memory_dict.Set("workingSetSize",
                     static_cast<double>(memory_info.working_set_size >> 10));
     memory_dict.Set(
@@ -1522,28 +1399,105 @@ void App::EnableSandbox(gin_helper::ErrorThrower thrower) {
   command_line->AppendSwitch(switches::kEnableSandbox);
 }
 
+v8::Local<v8::Promise> App::SetProxy(gin::Arguments* args) {
+  v8::Isolate* isolate = args->isolate();
+  gin_helper::Promise<void> promise(isolate);
+  v8::Local<v8::Promise> handle = promise.GetHandle();
+
+  gin_helper::Dictionary options;
+  args->GetNext(&options);
+
+  if (!Browser::Get()->is_ready()) {
+    promise.RejectWithErrorMessage(
+        "app.setProxy() can only be called after app is ready.");
+    return handle;
+  }
+
+  if (!g_browser_process->local_state()) {
+    promise.RejectWithErrorMessage(
+        "app.setProxy() failed due to internal error.");
+    return handle;
+  }
+
+  std::string mode, proxy_rules, bypass_list, pac_url;
+
+  options.Get("pacScript", &pac_url);
+  options.Get("proxyRules", &proxy_rules);
+  options.Get("proxyBypassRules", &bypass_list);
+
+  ProxyPrefs::ProxyMode proxy_mode = ProxyPrefs::MODE_FIXED_SERVERS;
+  if (!options.Get("mode", &mode)) {
+    // pacScript takes precedence over proxyRules.
+    if (!pac_url.empty()) {
+      proxy_mode = ProxyPrefs::MODE_PAC_SCRIPT;
+    }
+  } else if (!ProxyPrefs::StringToProxyMode(mode, &proxy_mode)) {
+    promise.RejectWithErrorMessage(
+        "Invalid mode, must be one of direct, auto_detect, pac_script, "
+        "fixed_servers or system");
+    return handle;
+  }
+
+  base::Value::Dict proxy_config;
+  switch (proxy_mode) {
+    case ProxyPrefs::MODE_DIRECT:
+      proxy_config = ProxyConfigDictionary::CreateDirect();
+      break;
+    case ProxyPrefs::MODE_SYSTEM:
+      proxy_config = ProxyConfigDictionary::CreateSystem();
+      break;
+    case ProxyPrefs::MODE_AUTO_DETECT:
+      proxy_config = ProxyConfigDictionary::CreateAutoDetect();
+      break;
+    case ProxyPrefs::MODE_PAC_SCRIPT:
+      proxy_config = ProxyConfigDictionary::CreatePacScript(pac_url, true);
+      break;
+    case ProxyPrefs::MODE_FIXED_SERVERS:
+      proxy_config =
+          ProxyConfigDictionary::CreateFixedServers(proxy_rules, bypass_list);
+      break;
+    default:
+      NOTIMPLEMENTED();
+  }
+
+  static_cast<BrowserProcessImpl*>(g_browser_process)
+      ->in_memory_pref_store()
+      ->SetValue(proxy_config::prefs::kProxy,
+                 base::Value{std::move(proxy_config)},
+                 WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
+
+  g_browser_process->system_network_context_manager()
+      ->GetContext()
+      ->ForceReloadProxyConfig(base::BindOnce(
+          gin_helper::Promise<void>::ResolvePromise, std::move(promise)));
+
+  return handle;
+}
+
+v8::Local<v8::Promise> App::ResolveProxy(gin::Arguments* args) {
+  v8::Isolate* isolate = args->isolate();
+  gin_helper::Promise<std::string> promise(isolate);
+  v8::Local<v8::Promise> handle = promise.GetHandle();
+
+  GURL url;
+  args->GetNext(&url);
+
+  static_cast<BrowserProcessImpl*>(g_browser_process)
+      ->GetResolveProxyHelper()
+      ->ResolveProxy(
+          url, base::BindOnce(gin_helper::Promise<std::string>::ResolvePromise,
+                              std::move(promise)));
+
+  return handle;
+}
+
 void App::SetUserAgentFallback(const std::string& user_agent) {
   ElectronBrowserClient::Get()->SetUserAgent(user_agent);
 }
 
 #if BUILDFLAG(IS_WIN)
-
 bool App::IsRunningUnderARM64Translation() const {
-  USHORT processMachine = 0;
-  USHORT nativeMachine = 0;
-
-  auto IsWow64Process2 = reinterpret_cast<decltype(&::IsWow64Process2)>(
-      GetProcAddress(GetModuleHandle(L"kernel32.dll"), "IsWow64Process2"));
-
-  if (IsWow64Process2 == nullptr) {
-    return false;
-  }
-
-  if (!IsWow64Process2(GetCurrentProcess(), &processMachine, &nativeMachine)) {
-    return false;
-  }
-
-  return nativeMachine == IMAGE_FILE_MACHINE_ARM64;
+  return base::win::OSInfo::IsRunningEmulatedOnArm64();
 }
 #endif
 
@@ -1583,7 +1537,7 @@ v8::Local<v8::Value> App::GetDockAPI(v8::Isolate* isolate) {
     // Initialize the Dock API, the methods are bound to "dock" which exists
     // for the lifetime of "app"
     auto browser = base::Unretained(Browser::Get());
-    gin_helper::Dictionary dock_obj = gin::Dictionary::CreateEmpty(isolate);
+    auto dock_obj = gin_helper::Dictionary::CreateEmpty(isolate);
     dock_obj.SetMethod("bounce", &DockBounce);
     dock_obj.SetMethod(
         "cancelBounce",
@@ -1640,7 +1594,7 @@ void ConfigureHostResolver(v8::Isolate* isolate,
   }
 
   bool enable_built_in_resolver =
-      base::FeatureList::IsEnabled(features::kAsyncDns);
+      base::FeatureList::IsEnabled(net::features::kAsyncDns);
   bool additional_dns_query_types_enabled = true;
 
   if (opts.Has("enableBuiltInResolver") &&
@@ -1667,7 +1621,7 @@ void ConfigureHostResolver(v8::Isolate* isolate,
     // doh_config.
     std::vector<net::DnsOverHttpsServerConfig> servers;
     for (const std::string& server_template : secure_dns_server_strings) {
-      absl::optional<net::DnsOverHttpsServerConfig> server_config =
+      std::optional<net::DnsOverHttpsServerConfig> server_config =
           net::DnsOverHttpsServerConfig::FromString(server_template);
       if (!server_config.has_value()) {
         thrower.ThrowTypeError(std::string("not a valid DoH template: ") +
@@ -1746,7 +1700,7 @@ gin::ObjectTemplateBuilder App::GetObjectTemplateBuilder(v8::Isolate* isolate) {
       .SetMethod("setBadgeCount",
                  base::BindRepeating(&Browser::SetBadgeCount, browser))
       .SetMethod("getBadgeCount",
-                 base::BindRepeating(&Browser::GetBadgeCount, browser))
+                 base::BindRepeating(&Browser::badge_count, browser))
       .SetMethod("getLoginItemSettings", &App::GetLoginItemSettings)
       .SetMethod("setLoginItemSettings",
                  base::BindRepeating(&Browser::SetLoginItemSettings, browser))
@@ -1833,8 +1787,6 @@ gin::ObjectTemplateBuilder App::GetObjectTemplateBuilder(v8::Isolate* isolate) {
 #endif
 #if BUILDFLAG(IS_MAC)
       .SetProperty("dock", &App::GetDockAPI)
-      .SetProperty("runningUnderRosettaTranslation",
-                   &App::IsRunningUnderRosettaTranslation)
 #endif
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
       .SetProperty("runningUnderARM64Translation",
@@ -1843,7 +1795,9 @@ gin::ObjectTemplateBuilder App::GetObjectTemplateBuilder(v8::Isolate* isolate) {
       .SetProperty("userAgentFallback", &App::GetUserAgentFallback,
                    &App::SetUserAgentFallback)
       .SetMethod("configureHostResolver", &ConfigureHostResolver)
-      .SetMethod("enableSandbox", &App::EnableSandbox);
+      .SetMethod("enableSandbox", &App::EnableSandbox)
+      .SetMethod("setProxy", &App::SetProxy)
+      .SetMethod("resolveProxy", &App::ResolveProxy);
 }
 
 const char* App::GetTypeName() {

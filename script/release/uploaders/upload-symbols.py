@@ -26,7 +26,7 @@ PRODUCT_NAME = get_electron_branding()['product_name']
 SYMBOLS_DIR = os.path.join(RELEASE_DIR, 'breakpad_symbols')
 
 PDB_LIST = [
-  os.path.join(RELEASE_DIR, '{0}.exe.pdb'.format(PROJECT_NAME))
+  os.path.join(RELEASE_DIR, f'{PROJECT_NAME}.exe.pdb')
 ]
 
 PDB_LIST += glob.glob(os.path.join(RELEASE_DIR, '*.dll.pdb'))
@@ -51,7 +51,7 @@ def main():
     npx_env = os.environ.copy()
     npx_env['npm_config_yes'] = 'true'
     subprocess.check_output([
-      NPX_CMD, '@sentry/cli@1.51.1', 'difutil', 'bundle-sources',
+      NPX_CMD, '@sentry/cli@1.62.0', 'difutil', 'bundle-sources',
       symbol_file], env=npx_env)
 
   files += glob.glob(SYMBOLS_DIR + '/*/*/*.src.zip')
@@ -80,8 +80,14 @@ def main():
 
 
 def run_symstore(pdb, dest, product):
-  execute(['symstore', 'add', '/r', '/f', pdb, '/s', dest, '/t', product])
-
+  for attempt in range(2):
+    try:
+      execute(['symstore', 'add', '/r', '/f', pdb, '/s', dest, '/t', product])
+      break
+    except Exception as e:
+      print(f"An error occurred while adding '{pdb}' to SymStore: {str(e)}")
+      if attempt == 0:
+        print("Retrying...")
 
 def upload_symbols(files):
   store_artifact(SYMBOLS_DIR, 'symbols',

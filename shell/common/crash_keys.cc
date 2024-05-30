@@ -4,14 +4,16 @@
 
 #include "shell/common/crash_keys.h"
 
+#include <cstdint>
 #include <deque>
-#include <utility>
-#include <vector>
+#include <map>
+#include <string>
 
 #include "base/command_line.h"
 #include "base/environment.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_split.h"
+#include "base/strings/stringprintf.h"
 #include "components/crash/core/common/crash_key.h"
 #include "content/public/common/content_switches.h"
 #include "electron/buildflags/buildflags.h"
@@ -55,11 +57,12 @@ void SetCrashKey(const std::string& key, const std::string& value) {
   if (key.size() >= kMaxCrashKeyNameLength) {
     node::Environment* env =
         node::Environment::GetCurrent(JavascriptEnvironment::GetIsolate());
-    EmitWarning(env,
-                "The crash key name, \"" + key + "\", is longer than " +
-                    std::to_string(kMaxCrashKeyNameLength) +
-                    " bytes, ignoring it.",
-                "electron");
+    EmitWarning(
+        env,
+        base::StringPrintf("The crash key name, \"%s\", is longer than %" PRIu32
+                           " bytes, ignoring it.",
+                           key.c_str(), kMaxCrashKeyNameLength),
+        "electron");
     return;
   }
 
@@ -97,14 +100,8 @@ void GetCrashKeys(std::map<std::string, std::string>* keys) {
 
 namespace {
 bool IsRunningAsNode() {
-#if BUILDFLAG(ENABLE_RUN_AS_NODE)
-  if (!electron::fuses::IsRunAsNodeEnabled())
-    return false;
-
-  return base::Environment::Create()->HasVar(electron::kRunAsNode);
-#else
-  return false;
-#endif
+  return electron::fuses::IsRunAsNodeEnabled() &&
+         base::Environment::Create()->HasVar(electron::kRunAsNode);
 }
 }  // namespace
 

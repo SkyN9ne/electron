@@ -6,7 +6,7 @@ Process: [Main](../glossary.md#main-process)
 
 An example of showing a dialog to select multiple files:
 
-```javascript
+```js
 const { dialog } = require('electron')
 console.log(dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] }))
 ```
@@ -52,7 +52,7 @@ The `browserWindow` argument allows the dialog to attach itself to a parent wind
 The `filters` specifies an array of file types that can be displayed or
 selected when you want to limit the user to a specific type. For example:
 
-```javascript
+```js
 {
   filters: [
     { name: 'Images', extensions: ['jpg', 'png', 'gif'] },
@@ -72,7 +72,7 @@ and a directory selector, so if you set `properties` to
 `['openFile', 'openDirectory']` on these platforms, a directory selector will be
 shown.
 
-```js
+```js @ts-type={mainWindow:Electron.BrowserWindow}
 dialog.showOpenDialogSync(mainWindow, {
   properties: ['openFile', 'openDirectory']
 })
@@ -119,7 +119,7 @@ The `browserWindow` argument allows the dialog to attach itself to a parent wind
 The `filters` specifies an array of file types that can be displayed or
 selected when you want to limit the user to a specific type. For example:
 
-```javascript
+```js
 {
   filters: [
     { name: 'Images', extensions: ['jpg', 'png', 'gif'] },
@@ -139,7 +139,7 @@ and a directory selector, so if you set `properties` to
 `['openFile', 'openDirectory']` on these platforms, a directory selector will be
 shown.
 
-```js
+```js @ts-type={mainWindow:Electron.BrowserWindow}
 dialog.showOpenDialog(mainWindow, {
   properties: ['openFile', 'openDirectory']
 }).then(result => {
@@ -174,7 +174,7 @@ dialog.showOpenDialog(mainWindow, {
     * `dontAddToRecent` _Windows_ - Do not add the item being saved to the recent documents list.
   * `securityScopedBookmarks` boolean (optional) _macOS_ _mas_ - Create a [security scoped bookmark](https://developer.apple.com/library/content/documentation/Security/Conceptual/AppSandboxDesignGuide/AppSandboxInDepth/AppSandboxInDepth.html#//apple_ref/doc/uid/TP40011183-CH3-SW16) when packaged for the Mac App Store. If this option is enabled and the file doesn't already exist a blank file will be created at the chosen path.
 
-Returns `string | undefined`, the path of the file chosen by the user; if the dialog is cancelled it returns `undefined`.
+Returns `string`, the path of the file chosen by the user; if the dialog is cancelled it returns an empty string.
 
 The `browserWindow` argument allows the dialog to attach itself to a parent window, making it modal.
 
@@ -207,7 +207,7 @@ The `filters` specifies an array of file types that can be displayed, see
 Returns `Promise<Object>` - Resolve with an object containing the following:
 
 * `canceled` boolean - whether or not the dialog was canceled.
-* `filePath` string (optional) - If the dialog is canceled, this will be `undefined`.
+* `filePath` string - If the dialog is canceled, this will be an empty string.
 * `bookmark` string (optional) _macOS_ _mas_ - Base64 encoded string which contains the security scoped bookmark data for the saved file. `securityScopedBookmarks` must be enabled for this to be present. (For return values, see [table here](#bookmarks-array).)
 
 The `browserWindow` argument allows the dialog to attach itself to a parent window, making it modal.
@@ -223,10 +223,10 @@ expanding and collapsing the dialog.
 * `browserWindow` [BrowserWindow](browser-window.md) (optional)
 * `options` Object
   * `message` string - Content of the message box.
-  * `type` string (optional) - Can be `"none"`, `"info"`, `"error"`, `"question"` or
-  `"warning"`. On Windows, `"question"` displays the same icon as `"info"`, unless
-  you set an icon using the `"icon"` option. On macOS, both `"warning"` and
-  `"error"` display the same warning icon.
+  * `type` string (optional) - Can be `none`, `info`, `error`, `question` or
+  `warning`. On Windows, `question` displays the same icon as `info`, unless
+  you set an icon using the `icon` option. On macOS, both `warning` and
+  `error` display the same warning icon.
   * `buttons` string[]&#32;(optional) - Array of texts for buttons. On Windows, an empty array
     will result in one button labeled "OK".
   * `defaultId` Integer (optional) - Index of the button in the buttons array which will
@@ -266,10 +266,10 @@ If `browserWindow` is not shown dialog will not be attached to it. In such case 
 * `browserWindow` [BrowserWindow](browser-window.md) (optional)
 * `options` Object
   * `message` string - Content of the message box.
-  * `type` string (optional) - Can be `"none"`, `"info"`, `"error"`, `"question"` or
-  `"warning"`. On Windows, `"question"` displays the same icon as `"info"`, unless
-  you set an icon using the `"icon"` option. On macOS, both `"warning"` and
-  `"error"` display the same warning icon.
+  * `type` string (optional) - Can be `none`, `info`, `error`, `question` or
+  `warning`. On Windows, `question` displays the same icon as `info`, unless
+  you set an icon using the `icon` option. On macOS, both `warning` and
+  `error` display the same warning icon.
   * `buttons` string[]&#32;(optional) - Array of texts for buttons. On Windows, an empty array
     will result in one button labeled "OK".
   * `defaultId` Integer (optional) - Index of the button in the buttons array which will

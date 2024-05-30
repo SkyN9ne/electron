@@ -4,9 +4,10 @@
 
 Electron's `webview` tag is based on [Chromium's `webview`][chrome-webview], which
 is undergoing dramatic architectural changes. This impacts the stability of `webviews`,
-including rendering, navigation, and event routing. We currently recommend to not
-use the `webview` tag and to consider alternatives, like `iframe`, [Electron's `BrowserView`](browser-view.md),
-or an architecture that avoids embedded content altogether.
+including rendering, navigation, and event routing. We currently recommend to
+not use the `webview` tag and to consider alternatives, like `iframe`, a
+[`WebContentsView`](web-contents-view.md), or an architecture that avoids
+embedded content altogether.
 
 ## Enabling
 
@@ -112,7 +113,7 @@ The `src` attribute can also accept data URLs, such as
 ### `nodeintegration`
 
 ```html
-<webview src="http://www.google.com/" nodeintegration></webview>
+<webview src="https://www.google.com/" nodeintegration></webview>
 ```
 
 A `boolean`. When this attribute is present the guest page in `webview` will have node
@@ -123,7 +124,7 @@ page.
 ### `nodeintegrationinsubframes`
 
 ```html
-<webview src="http://www.google.com/" nodeintegrationinsubframes></webview>
+<webview src="https://www.google.com/" nodeintegrationinsubframes></webview>
 ```
 
 A `boolean` for the experimental option for enabling NodeJS support in sub-frames such as iframes
@@ -161,7 +162,7 @@ after this script has finished executing.
 ### `httpreferrer`
 
 ```html
-<webview src="https://www.github.com/" httpreferrer="http://cheng.guru"></webview>
+<webview src="https://www.github.com/" httpreferrer="https://example.com/"></webview>
 ```
 
 A `string` that sets the referrer URL for the guest page.
@@ -183,6 +184,8 @@ page is loaded, use the `setUserAgent` method to change the user agent.
 
 A `boolean`. When this attribute is present the guest page will have web security disabled.
 Web security is enabled by default.
+
+This value can only be modified before the first navigation.
 
 ### `partition`
 
@@ -253,7 +256,7 @@ The `webview` tag has the following methods:
 
 **Example**
 
-```javascript
+```js @ts-expect-error=[3]
 const webview = document.querySelector('webview')
 webview.addEventListener('dom-ready', () => {
   webview.openDevTools()
@@ -278,9 +281,11 @@ if the page fails to load (see
 Loads the `url` in the webview, the `url` must contain the protocol prefix,
 e.g. the `http://` or `file://`.
 
-### `<webview>.downloadURL(url)`
+### `<webview>.downloadURL(url[, options])`
 
 * `url` string
+* `options` Object (optional)
+  * `headers` Record\<string, string\> (optional) - HTTP request headers.
 
 Initiates a download of the resource at `url` without navigating.
 
@@ -463,6 +468,10 @@ Executes editing command `cut` in page.
 
 Executes editing command `copy` in page.
 
+#### `<webview>.centerSelection()`
+
+Centers the current text selection in page.
+
 ### `<webview>.paste()`
 
 Executes editing command `paste` in page.
@@ -482,6 +491,25 @@ Executes editing command `selectAll` in page.
 ### `<webview>.unselect()`
 
 Executes editing command `unselect` in page.
+
+#### `<webview>.scrollToTop()`
+
+Scrolls to the top of the current `<webview>`.
+
+#### `<webview>.scrollToBottom()`
+
+Scrolls to the bottom of the current `<webview>`.
+
+#### `<webview>.adjustSelection(options)`
+
+* `options` Object
+  * `start` Number (optional) - Amount to shift the start index of the current selection.
+  * `end` Number (optional) - Amount to shift the end index of the current selection.
+
+Adjusts the current text selection starting and ending points in the focused frame by the given amounts. A negative amount moves the selection towards the beginning of the document, and a positive amount moves the selection towards the end of the document.
+
+See [`webContents.adjustSelection`](web-contents.md#contentsadjustselectionoptions) for
+examples.
 
 ### `<webview>.replace(text)`
 
@@ -550,7 +578,7 @@ Stops any `findInPage` request for the `webview` with the provided `action`.
     * `from` number - Index of the first page to print (0-based).
     * `to` number - Index of the last page to print (inclusive) (0-based).
   * `duplexMode` string (optional) - Set the duplex mode of the printed web page. Can be `simplex`, `shortEdge`, or `longEdge`.
-  * `dpi` Record<string, number> (optional)
+  * `dpi` Record\<string, number\> (optional)
     * `horizontal` number (optional) - The horizontal dpi.
     * `vertical` number (optional) - The vertical dpi.
   * `header` string (optional) - string to be printed as page header.
@@ -576,10 +604,12 @@ Prints `webview`'s web page. Same as `webContents.print([options])`.
     * `bottom` number (optional) - Bottom margin in inches. Defaults to 1cm (~0.4 inches).
     * `left` number (optional) - Left margin in inches. Defaults to 1cm (~0.4 inches).
     * `right` number (optional) - Right margin in inches. Defaults to 1cm (~0.4 inches).
-  * `pageRanges` string (optional) - Paper ranges to print, e.g., '1-5, 8, 11-13'. Defaults to the empty string, which means print all pages.
+  * `pageRanges` string (optional) - Page ranges to print, e.g., '1-5, 8, 11-13'. Defaults to the empty string, which means print all pages.
   * `headerTemplate` string (optional) - HTML template for the print header. Should be valid HTML markup with following classes used to inject printing values into them: `date` (formatted print date), `title` (document title), `url` (document location), `pageNumber` (current page number) and `totalPages` (total pages in the document). For example, `<span class=title></span>` would generate span containing the title.
   * `footerTemplate` string (optional) - HTML template for the print footer. Should use the same format as the `headerTemplate`.
   * `preferCSSPageSize` boolean (optional) - Whether or not to prefer page size as defined by css. Defaults to false, in which case the content will be scaled to fit the paper size.
+  * `generateTaggedPDF` boolean (optional) _Experimental_ - Whether or not to generate a tagged (accessible) PDF. Defaults to false. As this property is experimental, the generated PDF may not adhere fully to PDF/UA and WCAG standards.
+  * `generateDocumentOutline` boolean (optional) _Experimental_ - Whether or not to generate a PDF document outline from content headers. Defaults to false.
 
 Returns `Promise<Uint8Array>` - Resolves with the generated PDF data.
 
@@ -774,7 +804,7 @@ Fired when the guest window logs a console message.
 The following example code forwards all log messages to the embedder's console
 without regard for log level or other properties.
 
-```javascript
+```js @ts-expect-error=[3]
 const webview = document.querySelector('webview')
 webview.addEventListener('console-message', (e) => {
   console.log('Guest page logged a message:', e.message)
@@ -795,7 +825,7 @@ Returns:
 Fired when a result is available for
 [`webview.findInPage`](#webviewfindinpagetext-options) request.
 
-```javascript
+```js @ts-expect-error=[3,6]
 const webview = document.querySelector('webview')
 webview.addEventListener('found-in-page', (e) => {
   webview.stopFindInPage('keepSelection')
@@ -821,7 +851,29 @@ It is also not emitted during in-page navigation, such as clicking anchor links
 or updating the `window.location.hash`. Use `did-navigate-in-page` event for
 this purpose.
 
-Calling `event.preventDefault()` does __NOT__ have any effect.
+Calling `event.preventDefault()` does **NOT** have any effect.
+
+### Event: 'will-frame-navigate'
+
+Returns:
+
+* `url` string
+* `isMainFrame` boolean
+* `frameProcessId` Integer
+* `frameRoutingId` Integer
+
+Emitted when a user or the page wants to start navigation anywhere in the `<webview>`
+or any frames embedded within. It can happen when the `window.location` object is
+changed or a user clicks a link in the page.
+
+This event will not emit when the navigation is started programmatically with
+APIs like `<webview>.loadURL` and `<webview>.back`.
+
+It is also not emitted during in-page navigation, such as clicking anchor links
+or updating the `window.location.hash`. Use `did-navigate-in-page` event for
+this purpose.
+
+Calling `event.preventDefault()` does **NOT** have any effect.
 
 ### Event: 'did-start-navigation'
 
@@ -898,7 +950,7 @@ Fired when the guest page attempts to close itself.
 The following example code navigates the `webview` to `about:blank` when the
 guest attempts to close itself.
 
-```javascript
+```js @ts-expect-error=[3]
 const webview = document.querySelector('webview')
 webview.addEventListener('close', () => {
   webview.src = 'about:blank'
@@ -918,7 +970,7 @@ Fired when the guest page has sent an asynchronous message to embedder page.
 With `sendToHost` method and `ipc-message` event you can communicate
 between guest page and embedder page:
 
-```javascript
+```js @ts-expect-error=[4,7]
 // In embedder page.
 const webview = document.querySelector('webview')
 webview.addEventListener('ipc-message', (event) => {
@@ -928,7 +980,7 @@ webview.addEventListener('ipc-message', (event) => {
 webview.send('ping')
 ```
 
-```javascript
+```js
 // In guest page.
 const { ipcRenderer } = require('electron')
 ipcRenderer.on('ping', () => {
@@ -936,9 +988,14 @@ ipcRenderer.on('ping', () => {
 })
 ```
 
-### Event: 'crashed'
+### Event: 'render-process-gone'
 
-Fired when the renderer process is crashed.
+Returns:
+
+* `details` [RenderProcessGoneDetails](structures/render-process-gone-details.md)
+
+Fired when the renderer process unexpectedly disappears. This is normally
+because it was crashed or killed.
 
 ### Event: 'plugin-crashed'
 
@@ -988,6 +1045,15 @@ Returns:
 * `url` string - URL of the link that was clicked or selected.
 
 Emitted when a link is clicked in DevTools or 'Open in new tab' is selected for a link in its context menu.
+
+#### Event: 'devtools-search-query'
+
+Returns:
+
+* `event` Event
+* `query` string - text to query for.
+
+Emitted when 'Search' is selected for text in its context menu.
 
 ### Event: 'devtools-opened'
 
@@ -1043,9 +1109,15 @@ Returns:
     word and spellchecker is enabled.
   * `frameCharset` string - The character encoding of the frame on which the
     menu was invoked.
-  * `inputFieldType` string - If the context menu was invoked on an input
-    field, the type of that field. Possible values are `none`, `plainText`,
-    `password`, `other`.
+  * `formControlType` string - The source that the context menu was invoked on.
+    Possible values include `none`, `button-button`, `field-set`,
+    `input-button`, `input-checkbox`, `input-color`, `input-date`,
+    `input-datetime-local`, `input-email`, `input-file`, `input-hidden`,
+    `input-image`, `input-month`, `input-number`, `input-password`, `input-radio`,
+    `input-range`, `input-reset`, `input-search`, `input-submit`, `input-telephone`,
+    `input-text`, `input-time`, `input-url`, `input-week`, `output`, `reset-button`,
+    `select-list`, `select-list`, `select-multiple`, `select-one`, `submit-button`,
+    and `text-area`,
   * `spellcheckEnabled` boolean - If the context is editable, whether or not spellchecking is enabled.
   * `menuSourceType` string - Input source that invoked the context menu.
     Can be `none`, `mouse`, `keyboard`, `touch`, `touchMenu`, `longPress`, `longTap`, `touchHandle`, `stylus`, `adjustSelection`, or `adjustSelectionReset`.

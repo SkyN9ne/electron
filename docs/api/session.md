@@ -9,11 +9,11 @@ The `session` module can be used to create new `Session` objects.
 You can also access the `session` of existing pages by using the `session`
 property of [`WebContents`](web-contents.md), or from the `session` module.
 
-```javascript
+```js
 const { BrowserWindow } = require('electron')
 
 const win = new BrowserWindow({ width: 800, height: 600 })
-win.loadURL('http://github.com')
+win.loadURL('https://github.com')
 
 const ses = win.webContents.session
 console.log(ses.getUserAgent())
@@ -42,6 +42,22 @@ To create a `Session` with `options`, you have to ensure the `Session` with the
 `partition` has never been used before. There is no way to change the `options`
 of an existing `Session` object.
 
+### `session.fromPath(path[, options])`
+
+* `path` string
+* `options` Object (optional)
+  * `cache` boolean - Whether to enable cache.
+
+Returns `Session` - A session instance from the absolute path as specified by the `path`
+string. When there is an existing `Session` with the same absolute path, it
+will be returned; otherwise a new `Session` instance will be created with `options`. The
+call will throw an error if the path is not an absolute path. Additionally, an error will
+be thrown if an empty string is provided.
+
+To create a `Session` with `options`, you have to ensure the `Session` with the
+`path` has never been used before. There is no way to change the `options`
+of an existing `Session` object.
+
 ## Properties
 
 The `session` module has the following properties:
@@ -59,7 +75,7 @@ _This class is not exported from the `'electron'` module. It is only available a
 
 You can create a `Session` object in the `session` module:
 
-```javascript
+```js
 const { session } = require('electron')
 const ses = session.fromPartition('persist:name')
 console.log(ses.getUserAgent())
@@ -82,12 +98,12 @@ Emitted when Electron is about to download `item` in `webContents`.
 Calling `event.preventDefault()` will cancel the download and `item` will not be
 available from next tick of the process.
 
-```javascript
+```js @ts-expect-error=[4]
 const { session } = require('electron')
 session.defaultSession.on('will-download', (event, item, webContents) => {
   event.preventDefault()
   require('got')(item.getURL()).then((response) => {
-    require('fs').writeFileSync('/somewhere', response.body)
+    require('node:fs').writeFileSync('/somewhere', response.body)
   })
 })
 ```
@@ -198,7 +214,7 @@ cancel the request.  Additionally, permissioning on `navigator.hid` can
 be further managed by using [`ses.setPermissionCheckHandler(handler)`](#sessetpermissioncheckhandlerhandler)
 and [`ses.setDevicePermissionHandler(handler)`](#sessetdevicepermissionhandlerhandler).
 
-```javascript
+```js @ts-type={fetchGrantedDevices:()=>(Array<Electron.DevicePermissionHandlerHandlerDetails['device']>)}
 const { app, BrowserWindow } = require('electron')
 
 let win = null
@@ -237,7 +253,7 @@ app.whenReady().then(() => {
   win.webContents.session.on('select-hid-device', (event, details, callback) => {
     event.preventDefault()
     const selectedDevice = details.deviceList.find((device) => {
-      return device.vendorId === '9025' && device.productId === '67'
+      return device.vendorId === 9025 && device.productId === 67
     })
     callback(selectedDevice?.deviceId)
   })
@@ -250,7 +266,7 @@ Returns:
 
 * `event` Event
 * `details` Object
-  * `device` [HIDDevice[]](structures/hid-device.md)
+  * `device` [HIDDevice](structures/hid-device.md)
   * `frame` [WebFrameMain](web-frame-main.md)
 
 Emitted after `navigator.hid.requestDevice` has been called and
@@ -265,7 +281,7 @@ Returns:
 
 * `event` Event
 * `details` Object
-  * `device` [HIDDevice[]](structures/hid-device.md)
+  * `device` [HIDDevice](structures/hid-device.md)
   * `frame` [WebFrameMain](web-frame-main.md)
 
 Emitted after `navigator.hid.requestDevice` has been called and
@@ -280,7 +296,7 @@ Returns:
 
 * `event` Event
 * `details` Object
-  * `device` [HIDDevice[]](structures/hid-device.md)
+  * `device` [HIDDevice](structures/hid-device.md)
   * `origin` string (optional) - The origin that the device has been revoked from.
 
 Emitted after `HIDDevice.forget()` has been called.  This event can be used
@@ -304,7 +320,7 @@ cancel the request.  Additionally, permissioning on `navigator.serial` can
 be managed by using [ses.setPermissionCheckHandler(handler)](#sessetpermissioncheckhandlerhandler)
 with the `serial` permission.
 
-```javascript
+```js @ts-type={fetchGrantedDevices:()=>(Array<Electron.DevicePermissionHandlerHandlerDetails['device']>)}
 const { app, BrowserWindow } = require('electron')
 
 let win = null
@@ -447,7 +463,7 @@ cancel the request.  Additionally, permissioning on `navigator.usb` can
 be further managed by using [`ses.setPermissionCheckHandler(handler)`](#sessetpermissioncheckhandlerhandler)
 and [`ses.setDevicePermissionHandler(handler)`](#sessetdevicepermissionhandlerhandler).
 
-```javascript
+```js @ts-type={fetchGrantedDevices:()=>(Array<Electron.DevicePermissionHandlerHandlerDetails['device']>)} @ts-type={updateGrantedDevices:(devices:Array<Electron.DevicePermissionHandlerHandlerDetails['device']>)=>void}
 const { app, BrowserWindow } = require('electron')
 
 let win = null
@@ -486,7 +502,7 @@ app.whenReady().then(() => {
   win.webContents.session.on('select-usb-device', (event, details, callback) => {
     event.preventDefault()
     const selectedDevice = details.deviceList.find((device) => {
-      return device.vendorId === '9025' && device.productId === '67'
+      return device.vendorId === 9025 && device.productId === 67
     })
     if (selectedDevice) {
       // Optionally, add this to the persisted devices (updateGrantedDevices needs to be implemented by developer to persist permissions)
@@ -503,9 +519,8 @@ app.whenReady().then(() => {
 Returns:
 
 * `event` Event
-* `details` Object
-  * `device` [USBDevice](structures/usb-device.md)
-  * `frame` [WebFrameMain](web-frame-main.md)
+* `device` [USBDevice](structures/usb-device.md)
+* `webContents` [WebContents](web-contents.md)
 
 Emitted after `navigator.usb.requestDevice` has been called and
 `select-usb-device` has fired if a new device becomes available before
@@ -518,9 +533,8 @@ with the newly added device.
 Returns:
 
 * `event` Event
-* `details` Object
-  * `device` [USBDevice](structures/usb-device.md)
-  * `frame` [WebFrameMain](web-frame-main.md)
+* `device` [USBDevice](structures/usb-device.md)
+* `webContents` [WebContents](web-contents.md)
 
 Emitted after `navigator.usb.requestDevice` has been called and
 `select-usb-device` has fired if a device has been removed before the callback
@@ -534,7 +548,7 @@ Returns:
 
 * `event` Event
 * `details` Object
-  * `device` [USBDevice[]](structures/usb-device.md)
+  * `device` [USBDevice](structures/usb-device.md)
   * `origin` string (optional) - The origin that the device has been revoked from.
 
 Emitted after `USBDevice.forget()` has been called.  This event can be used
@@ -560,11 +574,11 @@ Clears the session’s HTTP cache.
 * `options` Object (optional)
   * `origin` string (optional) - Should follow `window.location.origin`’s representation
     `scheme://host:port`.
-  * `storages` string[] (optional) - The types of storages to clear, can contain:
+  * `storages` string[] (optional) - The types of storages to clear, can be
     `cookies`, `filesystem`, `indexdb`, `localstorage`,
     `shadercache`, `websql`, `serviceworkers`, `cachestorage`. If not
     specified, clear all storage types.
-  * `quotas` string[] (optional) - The types of quotas to clear, can contain:
+  * `quotas` string[] (optional) - The types of quotas to clear, can be
     `temporary`, `syncable`. If not specified, clear all quotas.
 
 Returns `Promise<void>` - resolves when the storage data has been cleared.
@@ -575,104 +589,49 @@ Writes any unwritten DOMStorage data to disk.
 
 #### `ses.setProxy(config)`
 
-* `config` Object
-  * `mode` string (optional) - The proxy mode. Should be one of `direct`,
-    `auto_detect`, `pac_script`, `fixed_servers` or `system`. If it's
-    unspecified, it will be automatically determined based on other specified
-    options.
-    * `direct`
-      In direct mode all connections are created directly, without any proxy involved.
-    * `auto_detect`
-      In auto_detect mode the proxy configuration is determined by a PAC script that can
-      be downloaded at http://wpad/wpad.dat.
-    * `pac_script`
-      In pac_script mode the proxy configuration is determined by a PAC script that is
-      retrieved from the URL specified in the `pacScript`. This is the default mode
-      if `pacScript` is specified.
-    * `fixed_servers`
-      In fixed_servers mode the proxy configuration is specified in `proxyRules`.
-      This is the default mode if `proxyRules` is specified.
-    * `system`
-      In system mode the proxy configuration is taken from the operating system.
-      Note that the system mode is different from setting no proxy configuration.
-      In the latter case, Electron falls back to the system settings
-      only if no command-line options influence the proxy configuration.
-  * `pacScript` string (optional) - The URL associated with the PAC file.
-  * `proxyRules` string (optional) - Rules indicating which proxies to use.
-  * `proxyBypassRules` string (optional) - Rules indicating which URLs should
-    bypass the proxy settings.
+* `config` [ProxyConfig](structures/proxy-config.md)
 
 Returns `Promise<void>` - Resolves when the proxy setting process is complete.
 
 Sets the proxy settings.
 
-When `mode` is unspecified, `pacScript` and `proxyRules` are provided together, the `proxyRules`
-option is ignored and `pacScript` configuration is applied.
-
 You may need `ses.closeAllConnections` to close currently in flight connections to prevent
 pooled sockets using previous proxy from being reused by future requests.
 
-The `proxyRules` has to follow the rules below:
+#### `ses.resolveHost(host, [options])`
 
-```sh
-proxyRules = schemeProxies[";"<schemeProxies>]
-schemeProxies = [<urlScheme>"="]<proxyURIList>
-urlScheme = "http" | "https" | "ftp" | "socks"
-proxyURIList = <proxyURL>[","<proxyURIList>]
-proxyURL = [<proxyScheme>"://"]<proxyHost>[":"<proxyPort>]
-```
+* `host` string - Hostname to resolve.
+* `options` Object (optional)
+  * `queryType` string (optional) - Requested DNS query type. If unspecified,
+    resolver will pick A or AAAA (or both) based on IPv4/IPv6 settings:
+    * `A` - Fetch only A records
+    * `AAAA` - Fetch only AAAA records.
+  * `source` string (optional) - The source to use for resolved addresses.
+    Default allows the resolver to pick an appropriate source. Only affects use
+    of big external sources (e.g. calling the system for resolution or using
+    DNS). Even if a source is specified, results can still come from cache,
+    resolving "localhost" or IP literals, etc. One of the following values:
+    * `any` (default) - Resolver will pick an appropriate source. Results could
+      come from DNS, MulticastDNS, HOSTS file, etc
+    * `system` - Results will only be retrieved from the system or OS, e.g. via
+      the `getaddrinfo()` system call
+    * `dns` - Results will only come from DNS queries
+    * `mdns` - Results will only come from Multicast DNS queries
+    * `localOnly` - No external sources will be used. Results will only come
+      from fast local sources that are available no matter the source setting,
+      e.g. cache, hosts file, IP literal resolution, etc.
+  * `cacheUsage` string (optional) - Indicates what DNS cache entries, if any,
+    can be used to provide a response. One of the following values:
+    * `allowed` (default) - Results may come from the host cache if non-stale
+    * `staleAllowed` - Results may come from the host cache even if stale (by
+      expiration or network changes)
+    * `disallowed` - Results will not come from the host cache.
+  * `secureDnsPolicy` string (optional) - Controls the resolver's Secure DNS
+    behavior for this request. One of the following values:
+    * `allow` (default)
+    * `disable`
 
-For example:
-
-* `http=foopy:80;ftp=foopy2` - Use HTTP proxy `foopy:80` for `http://` URLs, and
-  HTTP proxy `foopy2:80` for `ftp://` URLs.
-* `foopy:80` - Use HTTP proxy `foopy:80` for all URLs.
-* `foopy:80,bar,direct://` - Use HTTP proxy `foopy:80` for all URLs, failing
-  over to `bar` if `foopy:80` is unavailable, and after that using no proxy.
-* `socks4://foopy` - Use SOCKS v4 proxy `foopy:1080` for all URLs.
-* `http=foopy,socks5://bar.com` - Use HTTP proxy `foopy` for http URLs, and fail
-  over to the SOCKS5 proxy `bar.com` if `foopy` is unavailable.
-* `http=foopy,direct://` - Use HTTP proxy `foopy` for http URLs, and use no
-  proxy if `foopy` is unavailable.
-* `http=foopy;socks=foopy2` - Use HTTP proxy `foopy` for http URLs, and use
-  `socks4://foopy2` for all other URLs.
-
-The `proxyBypassRules` is a comma separated list of rules described below:
-
-* `[ URL_SCHEME "://" ] HOSTNAME_PATTERN [ ":" <port> ]`
-
-   Match all hostnames that match the pattern HOSTNAME_PATTERN.
-
-   Examples:
-     "foobar.com", "*foobar.com", "*.foobar.com", "*foobar.com:99",
-     "https://x.*.y.com:99"
-
-* `"." HOSTNAME_SUFFIX_PATTERN [ ":" PORT ]`
-
-   Match a particular domain suffix.
-
-   Examples:
-     ".google.com", ".com", "http://.google.com"
-
-* `[ SCHEME "://" ] IP_LITERAL [ ":" PORT ]`
-
-   Match URLs which are IP address literals.
-
-   Examples:
-     "127.0.1", "\[0:0::1]", "\[::1]", "http://\[::1]:99"
-
-* `IP_LITERAL "/" PREFIX_LENGTH_IN_BITS`
-
-   Match any URL that is to an IP literal that falls between the
-   given range. IP range is specified using CIDR notation.
-
-   Examples:
-     "192.168.1.1/16", "fefe:13::abc/33".
-
-* `<local>`
-
-   Match local addresses. The meaning of `<local>` is whether the
-   host matches one of: "127.0.0.1", "::1", "localhost".
+Returns [`Promise<ResolvedHost>`](structures/resolved-host.md) - Resolves with the resolved IP addresses for the `host`.
 
 #### `ses.resolveProxy(url)`
 
@@ -705,16 +664,18 @@ Sets download saving directory. By default, the download directory will be the
 
 Emulates network with the given configuration for the `session`.
 
-```javascript
+```js
+const win = new BrowserWindow()
+
 // To emulate a GPRS connection with 50kbps throughput and 500 ms latency.
-window.webContents.session.enableNetworkEmulation({
+win.webContents.session.enableNetworkEmulation({
   latency: 500,
   downloadThroughput: 6400,
   uploadThroughput: 6400
 })
 
 // To emulate a network outage.
-window.webContents.session.enableNetworkEmulation({ offline: true })
+win.webContents.session.enableNetworkEmulation({ offline: true })
 ```
 
 #### `ses.preconnect(options)`
@@ -734,7 +695,7 @@ Returns `Promise<void>` - Resolves when all connections are closed.
 #### `ses.fetch(input[, init])`
 
 * `input` string | [GlobalRequest](https://nodejs.org/api/globals.html#request)
-* `init` [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options) (optional)
+* `init` [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options) & \{ bypassCustomProtocolHandlers?: boolean \} (optional)
 
 Returns `Promise<GlobalResponse>` - see [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
@@ -768,9 +729,22 @@ Limitations:
 * The `.type` and `.url` values of the returned `Response` object are
   incorrect.
 
-Requests made with `ses.fetch` can be made to [custom protocols](protocol.md)
-as well as `file:`, and will trigger [webRequest](web-request.md) handlers if
-present.
+By default, requests made with `net.fetch` can be made to [custom protocols](protocol.md)
+as well as `file:`, and will trigger [webRequest](web-request.md) handlers if present.
+When the non-standard `bypassCustomProtocolHandlers` option is set in RequestInit,
+custom protocol handlers will not be called for this request. This allows forwarding an
+intercepted request to the built-in handler. [webRequest](web-request.md)
+handlers will still be triggered when bypassing custom protocols.
+
+```js
+protocol.handle('https', (req) => {
+  if (req.url === 'https://my-app.com') {
+    return new Response('<body>my app</body>')
+  } else {
+    return net.fetch(req, { bypassCustomProtocolHandlers: true })
+  }
+})
+```
 
 #### `ses.disableNetworkEmulation()`
 
@@ -803,7 +777,7 @@ calling `callback(-2)` rejects it.
 Calling `setCertificateVerifyProc(null)` will revert back to default certificate
 verify proc.
 
-```javascript
+```js
 const { BrowserWindow } = require('electron')
 const win = new BrowserWindow()
 
@@ -826,27 +800,27 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
   * `permission` string - The type of requested permission.
     * `clipboard-read` - Request access to read from the clipboard.
     * `clipboard-sanitized-write` - Request access to write to the clipboard.
+    * `display-capture` - Request access to capture the screen via the [Screen Capture API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Capture_API).
+    * `fullscreen` - Request control of the app's fullscreen state via the [Fullscreen API](https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API).
+    * `geolocation` - Request access to the user's location via the [Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API)
+    * `idle-detection` - Request access to the user's idle state via the [IdleDetector API](https://developer.mozilla.org/en-US/docs/Web/API/IdleDetector).
     * `media` -  Request access to media devices such as camera, microphone and speakers.
-    * `display-capture` - Request access to capture the screen.
     * `mediaKeySystem` - Request access to DRM protected content.
-    * `geolocation` - Request access to user's current location.
-    * `notifications` - Request notification creation and the ability to display them in the user's system tray.
-    * `midi` - Request MIDI access in the `webmidi` API.
-    * `midiSysex` - Request the use of system exclusive messages in the `webmidi` API.
-    * `pointerLock` - Request to directly interpret mouse movements as an input method. Click [here](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API) to know more. These requests always appear to originate from the main frame.
-    * `fullscreen` - Request for the app to enter fullscreen mode.
+    * `midi` - Request MIDI access in the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API).
+    * `midiSysex` - Request the use of system exclusive messages in the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API).
+    * `notifications` - Request notification creation and the ability to display them in the user's system tray using the [Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/notification)
+    * `pointerLock` - Request to directly interpret mouse movements as an input method via the [Pointer Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API). These requests always appear to originate from the main frame.
+    * `keyboardLock` - Request capture of keypresses for any or all of the keys on the physical keyboard via the [Keyboard Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Keyboard/lock). These requests always appear to originate from the main frame.
     * `openExternal` - Request to open links in external applications.
+    * `speaker-selection` - Request to enumerate and select audio output devices via the [speaker-selection permissions policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy/speaker-selection).
+    * `storage-access` - Allows content loaded in a third-party context to request access to third-party cookies using the [Storage Access API](https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API).
+    * `top-level-storage-access` -  Allow top-level sites to request third-party cookie access on behalf of embedded content originating from another site in the same related website set using the [Storage Access API](https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API).
     * `window-management` - Request access to enumerate screens using the [`getScreenDetails`](https://developer.chrome.com/en/articles/multi-screen-window-placement/) API.
-    * `unknown` - An unrecognized permission request
+    * `unknown` - An unrecognized permission request.
+    * `fileSystem` - Request access to read, write, and file management capabilities using the [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API).
   * `callback` Function
     * `permissionGranted` boolean - Allow or deny the permission.
-  * `details` Object - Some properties are only available on certain permission types.
-    * `externalURL` string (optional) - The url of the `openExternal` request.
-    * `securityOrigin` string (optional) - The security origin of the `media` request.
-    * `mediaTypes` string[] (optional) - The types of media access being requested, elements can be `video`
-      or `audio`
-    * `requestingUrl` string - The last URL the requesting frame loaded
-    * `isMainFrame` boolean - Whether the frame making the request is the main frame
+  * `details` [PermissionRequest](structures/permission-request.md)  | [FilesystemPermissionRequest](structures/filesystem-permission-request.md) | [MediaAccessPermissionRequest](structures/media-access-permission-request.md) | [OpenExternalPermissionRequest](structures/open-external-permission-request.md) - Additional information about the permission being requested.
 
 Sets the handler which can be used to respond to permission requests for the `session`.
 Calling `callback(true)` will allow the permission and `callback(false)` will reject it.
@@ -854,7 +828,7 @@ To clear the handler, call `setPermissionRequestHandler(null)`.  Please note tha
 you must also implement `setPermissionCheckHandler` to get complete permission handling.
 Most web APIs do a permission check and then make a permission request if the check is denied.
 
-```javascript
+```js
 const { session } = require('electron')
 session.fromPartition('some-partition').setPermissionRequestHandler((webContents, permission, callback) => {
   if (webContents.getURL() === 'some-host' && permission === 'notifications') {
@@ -869,7 +843,24 @@ session.fromPartition('some-partition').setPermissionRequestHandler((webContents
 
 * `handler` Function\<boolean> | null
   * `webContents` ([WebContents](web-contents.md) | null) - WebContents checking the permission.  Please note that if the request comes from a subframe you should use `requestingUrl` to check the request origin.  All cross origin sub frames making permission checks will pass a `null` webContents to this handler, while certain other permission checks such as `notifications` checks will always pass `null`.  You should use `embeddingOrigin` and `requestingOrigin` to determine what origin the owning frame and the requesting frame are on respectively.
-  * `permission` string - Type of permission check.  Valid values are `midiSysex`, `notifications`, `geolocation`, `media`,`mediaKeySystem`,`midi`, `pointerLock`, `fullscreen`, `openExternal`, `hid`, `serial`, or `usb`.
+  * `permission` string - Type of permission check.
+    * `clipboard-read` - Request access to read from the clipboard.
+    * `clipboard-sanitized-write` - Request access to write to the clipboard.
+    * `geolocation` - Access the user's geolocation data via the [Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API)
+    * `fullscreen` - Control of the app's fullscreen state via the [Fullscreen API](https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API).
+    * `hid` - Access the HID protocol to manipulate HID devices via the [WebHID API](https://developer.mozilla.org/en-US/docs/Web/API/WebHID_API).
+    * `idle-detection` - Access the user's idle state via the [IdleDetector API](https://developer.mozilla.org/en-US/docs/Web/API/IdleDetector).
+    * `media` - Access to media devices such as camera, microphone and speakers.
+    * `mediaKeySystem` - Access to DRM protected content.
+    * `midi` - Enable MIDI access in the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API).
+    * `midiSysex` - Use system exclusive messages in the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API).
+    * `notifications` - Configure and display desktop notifications to the user with the [Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/notification).
+    * `openExternal` - Open links in external applications.
+    * `pointerLock` - Directly interpret mouse movements as an input method via the [Pointer Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API). These requests always appear to originate from the main frame.
+    * `serial` - Read from and write to serial devices with the [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
+    * `storage-access` - Allows content loaded in a third-party context to request access to third-party cookies using the [Storage Access API](https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API).
+    * `top-level-storage-access` -  Allow top-level sites to request third-party cookie access on behalf of embedded content originating from another site in the same related website set using the [Storage Access API](https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API).
+    * `usb` - Expose non-standard Universal Serial Bus (USB) compatible devices services to the web with the [WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API).
   * `requestingOrigin` string - The origin URL of the permission check
   * `details` Object - Some properties are only available on certain permission types.
     * `embeddingOrigin` string (optional) - The origin of the frame embedding the frame that made the permission check.  Only set for cross-origin sub frames making permission checks.
@@ -885,7 +876,7 @@ you must also implement `setPermissionRequestHandler` to get complete permission
 Most web APIs do a permission check and then make a permission request if the check is denied.
 To clear the handler, call `setPermissionCheckHandler(null)`.
 
-```javascript
+```js
 const { session } = require('electron')
 const url = require('url')
 session.fromPartition('some-partition').setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
@@ -930,7 +921,7 @@ via the `navigator.mediaDevices.getDisplayMedia` API. Use the
 [desktopCapturer](desktop-capturer.md) API to choose which stream(s) to grant
 access to.
 
-```javascript
+```js
 const { session, desktopCapturer } = require('electron')
 
 session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
@@ -944,7 +935,7 @@ session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
 Passing a [WebFrameMain](web-frame-main.md) object as a video or audio stream
 will capture the video or audio stream from that frame.
 
-```javascript
+```js
 const { session } = require('electron')
 
 session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
@@ -961,7 +952,7 @@ Passing `null` instead of a function resets the handler to its default state.
   * `details` Object
     * `deviceType` string - The type of device that permission is being requested on, can be `hid`, `serial`, or `usb`.
     * `origin` string - The origin URL of the device permission check.
-    * `device` [HIDDevice](structures/hid-device.md) | [SerialPort](structures/serial-port.md)- the device that permission is being requested for.
+    * `device` [HIDDevice](structures/hid-device.md) | [SerialPort](structures/serial-port.md) | [USBDevice](structures/usb-device.md) - the device that permission is being requested for.
 
 Sets the handler which can be used to respond to device permission checks for the `session`.
 Returning `true` will allow the device to be permitted and `false` will reject it.
@@ -969,11 +960,11 @@ To clear the handler, call `setDevicePermissionHandler(null)`.
 This handler can be used to provide default permissioning to devices without first calling for permission
 to devices (eg via `navigator.hid.requestDevice`).  If this handler is not defined, the default device
 permissions as granted through device selection (eg via `navigator.hid.requestDevice`) will be used.
-Additionally, the default behavior of Electron is to store granted device permision in memory.
+Additionally, the default behavior of Electron is to store granted device permission in memory.
 If longer term storage is needed, a developer can store granted device
 permissions (eg when handling the `select-hid-device` event) and then read from that storage with `setDevicePermissionHandler`.
 
-```javascript
+```js @ts-type={fetchGrantedDevices:()=>(Array<Electron.DevicePermissionHandlerHandlerDetails['device']>)}
 const { app, BrowserWindow } = require('electron')
 
 let win = null
@@ -1021,9 +1012,58 @@ app.whenReady().then(() => {
   win.webContents.session.on('select-hid-device', (event, details, callback) => {
     event.preventDefault()
     const selectedDevice = details.deviceList.find((device) => {
-      return device.vendorId === '9025' && device.productId === '67'
+      return device.vendorId === 9025 && device.productId === 67
     })
-    callback(selectedPort?.deviceId)
+    callback(selectedDevice?.deviceId)
+  })
+})
+```
+
+#### `ses.setUSBProtectedClassesHandler(handler)`
+
+* `handler` Function\<string[]> | null
+  * `details` Object
+    * `protectedClasses` string[] - The current list of protected USB classes. Possible class values include:
+      * `audio`
+      * `audio-video`
+      * `hid`
+      * `mass-storage`
+      * `smart-card`
+      * `video`
+      * `wireless`
+
+Sets the handler which can be used to override which [USB classes are protected](https://wicg.github.io/webusb/#usbinterface-interface).
+The return value for the handler is a string array of USB classes which should be considered protected (eg not available in the renderer).  Valid values for the array are:
+
+* `audio`
+* `audio-video`
+* `hid`
+* `mass-storage`
+* `smart-card`
+* `video`
+* `wireless`
+
+Returning an empty string array from the handler will allow all USB classes; returning the passed in array will maintain the default list of protected USB classes (this is also the default behavior if a handler is not defined).
+To clear the handler, call `setUSBProtectedClassesHandler(null)`.
+
+```js
+const { app, BrowserWindow } = require('electron')
+
+let win = null
+
+app.whenReady().then(() => {
+  win = new BrowserWindow()
+
+  win.webContents.session.setUSBProtectedClassesHandler((details) => {
+    // Allow all classes:
+    // return []
+    // Keep the current set of protected classes:
+    // return details.protectedClasses
+    // Selectively remove classes:
+    return details.protectedClasses.filter((usbClass) => {
+      // Exclude classes except for audio classes
+      return usbClass.indexOf('audio') === -1
+    })
   })
 })
 ```
@@ -1061,32 +1101,32 @@ that requires additional validation will be automatically cancelled.
 macOS does not require a handler because macOS handles the pairing
 automatically.  To clear the handler, call `setBluetoothPairingHandler(null)`.
 
-```javascript
-
-const { app, BrowserWindow, ipcMain, session } = require('electron')
-
-let bluetoothPinCallback = null
+```js
+const { app, BrowserWindow, session } = require('electron')
+const path = require('node:path')
 
 function createWindow () {
+  let bluetoothPinCallback = null
+
   const mainWindow = new BrowserWindow({
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
   })
+
+  mainWindow.webContents.session.setBluetoothPairingHandler((details, callback) => {
+    bluetoothPinCallback = callback
+    // Send a IPC message to the renderer to prompt the user to confirm the pairing.
+    // Note that this will require logic in the renderer to handle this message and
+    // display a prompt to the user.
+    mainWindow.webContents.send('bluetooth-pairing-request', details)
+  })
+
+  // Listen for an IPC message from the renderer to get the response for the Bluetooth pairing.
+  mainWindow.webContents.ipc.on('bluetooth-pairing-response', (event, response) => {
+    bluetoothPinCallback(response)
+  })
 }
-
-// Listen for an IPC message from the renderer to get the response for the Bluetooth pairing.
-ipcMain.on('bluetooth-pairing-response', (event, response) => {
-  bluetoothPinCallback(response)
-})
-
-mainWindow.webContents.session.setBluetoothPairingHandler((details, callback) => {
-  bluetoothPinCallback = callback
-  // Send a IPC message to the renderer to prompt the user to confirm the pairing.
-  // Note that this will require logic in the renderer to handle this message and
-  // display a prompt to the user.
-  mainWindow.webContents.send('bluetooth-pairing-request', details)
-})
 
 app.whenReady().then(() => {
   createWindow()
@@ -1107,7 +1147,7 @@ Clears the host resolver cache.
 Dynamically sets whether to always send credentials for HTTP NTLM or Negotiate
 authentication.
 
-```javascript
+```js
 const { session } = require('electron')
 // consider any url ending with `example.com`, `foobar.com`, `baz`
 // for integrated authentication.
@@ -1170,16 +1210,18 @@ reused for new connections.
 
 Returns `Promise<Buffer>` - resolves with blob data.
 
-#### `ses.downloadURL(url)`
+#### `ses.downloadURL(url[, options])`
 
 * `url` string
+* `options` Object (optional)
+  * `headers` Record\<string, string\> (optional) - HTTP request headers.
 
 Initiates a download of the resource at `url`.
 The API will generate a [DownloadItem](download-item.md) that can be accessed
 with the [will-download](#event-will-download) event.
 
 **Note:** This does not perform any security checks that relate to a page's origin,
-unlike [`webContents.downloadURL`](web-contents.md#contentsdownloadurlurl).
+unlike [`webContents.downloadURL`](web-contents.md#contentsdownloadurlurl-options).
 
 #### `ses.createInterruptedDownload(options)`
 
@@ -1222,6 +1264,10 @@ registered.
 
 Sets the directory to store the generated JS [code cache](https://v8.dev/blog/code-caching-for-devs) for this session. The directory is not required to be created by the user before this call, the runtime will create if it does not exist otherwise will use the existing directory. If directory cannot be created, then code cache will not be used and all operations related to code cache will fail silently inside the runtime. By default, the directory will be `Code Cache` under the
 respective user data folder.
+
+Note that by default code cache is only enabled for http(s) URLs, to enable code
+cache for custom protocols, `codeCache: true` and `standard: true` must be
+specified when registering the protocol.
 
 #### `ses.clearCodeCaches(options)`
 
@@ -1325,9 +1371,9 @@ extension to be loaded.
 
 ```js
 const { app, session } = require('electron')
-const path = require('path')
+const path = require('node:path')
 
-app.on('ready', async () => {
+app.whenReady().then(async () => {
   await session.defaultSession.loadExtension(
     path.join(__dirname, 'react-devtools'),
     // allowFileAccess is required to load the devtools extension on file:// URLs.
@@ -1359,7 +1405,7 @@ is emitted.
 
 * `extensionId` string - ID of extension to query
 
-Returns `Extension` | `null` - The loaded extension with the given ID.
+Returns `Extension | null` - The loaded extension with the given ID.
 
 **Note:** This API cannot be called before the `ready` event of the `app` module
 is emitted.
@@ -1375,6 +1421,37 @@ is emitted.
 
 Returns `string | null` - The absolute file system path where data for this
 session is persisted on disk.  For in memory sessions this returns `null`.
+
+#### `ses.clearData([options])`
+
+* `options` Object (optional)
+  * `dataTypes` String[] (optional) - The types of data to clear. By default, this will clear all types of data.
+    * `backgroundFetch` - Background Fetch
+    * `cache` - Cache
+    * `cookies` - Cookies
+    * `downloads` - Downloads
+    * `fileSystems` - File Systems
+    * `indexedDB` - IndexedDB
+    * `localStorage` - Local Storage
+    * `serviceWorkers` - Service Workers
+    * `webSQL` - WebSQL
+  * `origins` String[] (optional) - Clear data for only these origins. Cannot be used with `excludeOrigins`.
+  * `excludeOrigins` String[] (optional) - Clear data for all origins except these ones. Cannot be used with `origins`.
+  * `avoidClosingConnections` boolean (optional) - Skips deleting cookies that would close current network connections. (Default: `false`)
+  * `originMatchingMode` String (optional) - The behavior for matching data to origins.
+    * `third-parties-included` (default) - Storage is matched on origin in first-party contexts and top-level-site in third-party contexts.
+    * `origin-in-all-contexts` - Storage is matched on origin only in all contexts.
+
+Returns `Promise<void>` - resolves when all data has been cleared.
+
+Clears various different types of data.
+
+This method clears more types of data and is more thourough than the
+`clearStorageData` method.
+
+**Note:** Cookies are stored at a broader scope than origins. When removing cookies and filtering by `origins` (or `excludeOrigins`), the cookies will be removed at the [registrable domain](https://url.spec.whatwg.org/#host-registrable-domain) level. For example, clearing cookies for the origin `https://really.specific.origin.example.com/` will end up clearing all cookies for `example.com`. Clearing cookies for the origin `https://my.website.example.co.uk/` will end up clearing all cookies for `example.co.uk`.
+
+For more information, refer to Chromium's [`BrowsingDataRemover` interface](https://source.chromium.org/chromium/chromium/src/+/main:content/public/browser/browsing_data_remover.h).
 
 ### Instance Properties
 
@@ -1410,15 +1487,15 @@ A [`WebRequest`](web-request.md) object for this session.
 
 A [`Protocol`](protocol.md) object for this session.
 
-```javascript
+```js
 const { app, session } = require('electron')
-const path = require('path')
+const path = require('node:path')
 
 app.whenReady().then(() => {
   const protocol = session.fromPartition('some-partition').protocol
   if (!protocol.registerFileProtocol('atom', (request, callback) => {
     const url = request.url.substr(7)
-    callback({ path: path.normalize(`${__dirname}/${url}`) })
+    callback({ path: path.normalize(path.join(__dirname, url)) })
   })) {
     console.error('Failed to register protocol')
   }
@@ -1429,7 +1506,7 @@ app.whenReady().then(() => {
 
 A [`NetLog`](net-log.md) object for this session.
 
-```javascript
+```js
 const { app, session } = require('electron')
 
 app.whenReady().then(async () => {

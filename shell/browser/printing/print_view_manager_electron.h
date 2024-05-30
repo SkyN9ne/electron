@@ -5,7 +5,6 @@
 #ifndef ELECTRON_SHELL_BROWSER_PRINTING_PRINT_VIEW_MANAGER_ELECTRON_H_
 #define ELECTRON_SHELL_BROWSER_PRINTING_PRINT_VIEW_MANAGER_ELECTRON_H_
 
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -59,9 +58,6 @@ class PrintViewManagerElectron
   void ScriptedPrint(printing::mojom::ScriptedPrintParamsPtr params,
                      ScriptedPrintCallback callback) override;
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-  void UpdatePrintSettings(int32_t cookie,
-                           base::Value::Dict job_settings,
-                           UpdatePrintSettingsCallback callback) override;
   void SetupScriptedPrintPreview(
       SetupScriptedPrintPreviewCallback callback) override;
   void ShowScriptedPrintPreview(bool source_is_modifiable) override;

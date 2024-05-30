@@ -2,13 +2,19 @@ gclient_gn_args_from = 'src'
 
 vars = {
   'chromium_version':
-    '111.0.5560.0',
+    '126.0.6445.0',
   'node_version':
-    'v18.14.2',
+    'v20.13.1',
   'nan_version':
-    '16fa32231e2ccd89d2804b3f765319128b20c4ac',
+    'e14bdcd1f72d62bca1d541b66da43130384ec213',
   'squirrel.mac_version':
     '0e5d146ba13101a1302d59ea6e6e0b3cace4ae38',
+  'reactiveobjc_version':
+    '74ab5baccc6f7202c8ac69a8d1e152c29dc1ea76',
+  'mantle_version':
+    '78d3966b3c331292ea29ec38661b25df0a245948',
+  'engflow_reclient_configs_version':
+    '955335c30a752e9ef7bff375baab5e0819b6c00d',
 
   'pyyaml_version': '3.12',
 
@@ -17,6 +23,12 @@ vars = {
   'nodejs_git': 'https://github.com/nodejs',
   'yaml_git': 'https://github.com/yaml',
   'squirrel_git': 'https://github.com/Squirrel',
+  'reactiveobjc_git': 'https://github.com/ReactiveCocoa',
+  'mantle_git': 'https://github.com/Mantle',
+  'engflow_git': 'https://github.com/EngFlow',
+  
+  # The path of the sysroots.json file.
+  'sysroots_json_path': 'electron/script/sysroots.json',
 
   # KEEP IN SYNC WITH utils.js FILE
   'yarn_version': '1.15.2',
@@ -87,12 +99,16 @@ deps = {
     'condition': 'process_deps',
   },
   'src/third_party/squirrel.mac/vendor/ReactiveObjC': {
-    'url': 'https://github.com/ReactiveCocoa/ReactiveObjC.git@74ab5baccc6f7202c8ac69a8d1e152c29dc1ea76',
+    'url': Var("reactiveobjc_git") + '/ReactiveObjC.git@' + Var("reactiveobjc_version"),
     'condition': 'process_deps'
   },
   'src/third_party/squirrel.mac/vendor/Mantle': {
-    'url': 'https://github.com/Mantle/Mantle.git@78d3966b3c331292ea29ec38661b25df0a245948',
+    'url':  Var("mantle_git") + '/Mantle.git@' + Var("mantle_version"),
     'condition': 'process_deps',
+  },
+  'src/third_party/engflow-reclient-configs': {
+    'url': Var("engflow_git") + '/reclient-configs.git@' + Var("engflow_reclient_configs_version"),
+    'condition': 'process_deps'
   }
 }
 
@@ -145,9 +161,56 @@ hooks = [
       'import os, subprocess; os.chdir(os.path.join("src", "electron")); subprocess.check_call(["python3", "script/lib/npx.py", "yarn@' + (Var("yarn_version")) + '", "install", "--frozen-lockfile"]);',
     ],
   },
+  {
+    'name': 'sysroot_arm',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_arm',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=arm'],
+  },
+  {
+    'name': 'sysroot_arm64',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_arm64',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=arm64'],
+  },
+  {
+    'name': 'sysroot_x86',
+    'pattern': '.',
+    'condition': 'checkout_linux and (checkout_x86 or checkout_x64)',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=x86'],
+  },
+  {
+    'name': 'sysroot_mips',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_mips',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=mips'],
+  },
+  {
+    'name': 'sysroot_mips64',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_mips64',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=mips64el'],
+  },
+  {
+    'name': 'sysroot_x64',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_x64',
+    'action': ['python3', 'src/build/linux/sysroot_scripts/install-sysroot.py',
+               '--sysroots-json-path=' + Var('sysroots_json_path'),
+               '--arch=x64'],
+  },
 ]
 
 recursedeps = [
   'src',
-  'src/third_party/squirrel.mac',
 ]

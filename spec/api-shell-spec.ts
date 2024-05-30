@@ -2,12 +2,12 @@ import { BrowserWindow, app } from 'electron/main';
 import { shell } from 'electron/common';
 import { closeAllWindows } from './lib/window-helpers';
 import { ifdescribe, ifit, listen } from './lib/spec-helpers';
-import * as http from 'http';
+import * as http from 'node:http';
 import * as fs from 'fs-extra';
-import * as os from 'os';
-import * as path from 'path';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { expect } from 'chai';
-import { once } from 'events';
+import { once } from 'node:events';
 
 describe('shell module', () => {
   describe('shell.openExternal()', () => {
@@ -31,7 +31,7 @@ describe('shell module', () => {
     });
     afterEach(closeAllWindows);
 
-    it('opens an external link', async () => {
+    async function urlOpened () {
       let url = 'http://127.0.0.1';
       let requestReceived: Promise<any>;
       if (process.platform === 'linux') {
@@ -53,9 +53,23 @@ describe('shell module', () => {
         url = (await listen(server)).url;
         requestReceived = new Promise<void>(resolve => server.on('connection', () => resolve()));
       }
+      return { url, requestReceived };
+    }
 
+    it('opens an external link', async () => {
+      const { url, requestReceived } = await urlOpened();
       await Promise.all<void>([
         shell.openExternal(url),
+        requestReceived
+      ]);
+    });
+
+    it('opens an external link in the renderer', async () => {
+      const { url, requestReceived } = await urlOpened();
+      const w = new BrowserWindow({ show: false, webPreferences: { sandbox: false, contextIsolation: false, nodeIntegration: true } });
+      await w.loadURL('about:blank');
+      await Promise.all<void>([
+        w.webContents.executeJavaScript(`require("electron").shell.openExternal(${JSON.stringify(url)})`),
         requestReceived
       ]);
     });

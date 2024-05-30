@@ -1,10 +1,11 @@
-import * as childProcess from 'child_process';
-import * as path from 'path';
-import * as http from 'http';
-import * as https from 'https';
-import * as net from 'net';
-import * as v8 from 'v8';
-import * as url from 'url';
+import * as childProcess from 'node:child_process';
+import * as path from 'node:path';
+import * as http from 'node:http';
+import * as https from 'node:https';
+import * as http2 from 'node:http2';
+import * as net from 'node:net';
+import * as v8 from 'node:v8';
+import * as url from 'node:url';
 import { SuiteFunction, TestFunction } from 'mocha';
 import { BrowserWindow } from 'electron/main';
 import { AssertionError } from 'chai';
@@ -55,7 +56,7 @@ class RemoteControlApp {
         res.on('data', chunk => { chunks.push(chunk); });
         res.on('end', () => {
           const ret = v8.deserialize(Buffer.concat(chunks));
-          if (Object.prototype.hasOwnProperty.call(ret, 'error')) {
+          if (Object.hasOwn(ret, 'error')) {
             reject(new Error(`remote error: ${ret.error}\n\nTriggered at:`));
           } else {
             resolve(ret.result);
@@ -65,11 +66,11 @@ class RemoteControlApp {
       req.write(js);
       req.end();
     });
-  }
+  };
 
   remotely = (script: Function, ...args: any[]): Promise<any> => {
     return this.remoteEval(`(${script})(...${JSON.stringify(args)})`);
-  }
+  };
 }
 
 export async function startRemoteControlApp (extraArgs: string[] = [], options?: childProcess.SpawnOptionsWithoutStdio) {
@@ -141,11 +142,11 @@ export async function repeatedly<T> (
   opts?: { until?: (x: T) => boolean, timeLimit?: number }
 ) {
   const { until = (x: T) => !!x, timeLimit = 10000 } = opts ?? {};
-  const begin = +new Date();
+  const begin = Date.now();
   while (true) {
     const ret = await fn();
     if (until(ret)) { return ret; }
-    if (+new Date() - begin > timeLimit) { throw new Error(`repeatedly timed out (limit=${timeLimit})`); }
+    if (Date.now() - begin > timeLimit) { throw new Error(`repeatedly timed out (limit=${timeLimit})`); }
   }
 }
 
@@ -175,13 +176,13 @@ export function useRemoteContext (opts?: any) {
   });
 }
 
-export async function itremote (name: string, fn: Function, args?: any[]) {
-  it(name, async () => {
+async function runRemote (type: 'skip' | 'none' | 'only', name: string, fn: Function, args?: any[]) {
+  const wrapped = async () => {
     const w = await getRemoteContext();
     const { ok, message } = await w.webContents.executeJavaScript(`(async () => {
       try {
         const chai_1 = require('chai')
-        const promises_1 = require('timers/promises')
+        const promises_1 = require('node:timers/promises')
         chai_1.use(require('chai-as-promised'))
         chai_1.use(require('dirty-chai'))
         await (${fn})(...${JSON.stringify(args ?? [])})
@@ -191,13 +192,34 @@ export async function itremote (name: string, fn: Function, args?: any[]) {
       }
     })()`);
     if (!ok) { throw new AssertionError(message); }
-  });
+  };
+
+  let runFn: any = it;
+  if (type === 'only') {
+    runFn = it.only;
+  } else if (type === 'skip') {
+    runFn = it.skip;
+  }
+
+  runFn(name, wrapped);
 }
 
-export async function listen (server: http.Server | https.Server) {
+export const itremote = Object.assign(
+  (name: string, fn: Function, args?: any[]) => {
+    runRemote('none', name, fn, args);
+  }, {
+    only: (name: string, fn: Function, args?: any[]) => {
+      runRemote('only', name, fn, args);
+    },
+    skip: (name: string, fn: Function, args?: any[]) => {
+      runRemote('skip', name, fn, args);
+    }
+  });
+
+export async function listen (server: http.Server | https.Server | http2.Http2SecureServer) {
   const hostname = '127.0.0.1';
   await new Promise<void>(resolve => server.listen(0, hostname, () => resolve()));
   const { port } = server.address() as net.AddressInfo;
-  const protocol = (server instanceof https.Server) ? 'https' : 'http';
-  return { port, url: url.format({ protocol, hostname, port }) };
+  const protocol = (server instanceof http.Server) ? 'http' : 'https';
+  return { port, hostname, url: url.format({ protocol, hostname, port }) };
 }

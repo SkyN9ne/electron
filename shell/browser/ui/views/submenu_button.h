@@ -5,9 +5,11 @@
 #ifndef ELECTRON_SHELL_BROWSER_UI_VIEWS_SUBMENU_BUTTON_H_
 #define ELECTRON_SHELL_BROWSER_UI_VIEWS_SUBMENU_BUTTON_H_
 
-#include <memory>
+#include <string>
 
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/controls/button/menu_button.h"
 
@@ -15,6 +17,8 @@ namespace electron {
 
 // Special button that used by menu bar to show submenus.
 class SubmenuButton : public views::MenuButton {
+  METADATA_HEADER(SubmenuButton, views::MenuButton)
+
  public:
   SubmenuButton(PressedCallback callback,
                 const std::u16string& title,

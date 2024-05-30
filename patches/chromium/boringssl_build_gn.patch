@@ -6,13 +6,13 @@ Subject: boringssl BUILD.gn
 Build BoringSSL with some extra functions that nodejs needs.
 
 diff --git a/third_party/boringssl/BUILD.gn b/third_party/boringssl/BUILD.gn
-index dfd4ff9d338683214566345f1c6a0a3add12094c..6c14f780e7cc1478385da23e843256f101206220 100644
+index f1b4a1ac248479746a378c85e34845b7703d5867..727940b7c015bedb0a09c06123d9e12cbb039694 100644
 --- a/third_party/boringssl/BUILD.gn
 +++ b/third_party/boringssl/BUILD.gn
-@@ -44,6 +44,20 @@ config("no_asm_config") {
+@@ -52,6 +52,21 @@ config("no_asm_config") {
+ all_sources = crypto_sources + ssl_sources + pki_sources + pki_internal_headers
+ all_headers = crypto_headers + ssl_headers + pki_headers + pki_internal_headers
  
- all_sources = crypto_sources + ssl_sources
- all_headers = crypto_headers + ssl_headers
 +if (is_electron_build) {
 +  # Needed to build a nodejs-compatible boringssl.
 +  all_sources += [
@@ -27,6 +27,7 @@ index dfd4ff9d338683214566345f1c6a0a3add12094c..6c14f780e7cc1478385da23e843256f1
 +    "src/decrepit/ripemd/ripemd.c",
 +  ]
 +}
- 
- # Windows' assembly is built with NASM. The other platforms use the platform
- # assembler. Exclude Windows ARM64 because NASM targets x86 and x64 only.
++
+ if (enable_rust) {
+   rust_bindgen("raw_bssl_sys_bindings") {
+     header = "src/rust/bssl-sys/wrapper.h"

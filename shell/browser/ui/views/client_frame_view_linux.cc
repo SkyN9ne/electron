@@ -14,6 +14,8 @@
 #include "shell/browser/ui/views/frameless_view.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/models/image_model.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
@@ -61,9 +63,6 @@ ui::NavButtonProvider::ButtonState ButtonStateToNavButtonProviderState(
 }
 
 }  // namespace
-
-// static
-const char ClientFrameViewLinux::kViewClassName[] = "ClientFrameView";
 
 ClientFrameViewLinux::ClientFrameViewLinux()
     : theme_(ui::NativeTheme::GetInstanceForNativeUi()),
@@ -131,9 +130,11 @@ void ClientFrameViewLinux::Init(NativeWindowViews* window,
           window->GetAcceleratedWidget()));
   host_supports_client_frame_shadow_ = tree_host->SupportsClientFrameShadow();
 
+  bool tiled = tiled_edges().top || tiled_edges().left ||
+               tiled_edges().bottom || tiled_edges().right;
   frame_provider_ =
       ui::LinuxUiTheme::GetForProfile(nullptr)->GetWindowFrameProvider(
-          !host_supports_client_frame_shadow_, frame_->IsMaximized());
+          !host_supports_client_frame_shadow_, tiled, frame_->IsMaximized());
 
   UpdateWindowTitle();
 
@@ -150,7 +151,13 @@ void ClientFrameViewLinux::Init(NativeWindowViews* window,
 }
 
 gfx::Insets ClientFrameViewLinux::GetBorderDecorationInsets() const {
-  return frame_provider_->GetFrameThicknessDip();
+  const auto insets = frame_provider_->GetFrameThicknessDip();
+  // We shouldn't draw frame decorations for the tiled edges.
+  // See https://wayland.app/protocols/xdg-shell#xdg_toplevel:enum:state
+  return gfx::Insets::TLBR(tiled_edges().top ? 0 : insets.top(),
+                           tiled_edges().left ? 0 : insets.left(),
+                           tiled_edges().bottom ? 0 : insets.bottom(),
+                           tiled_edges().right ? 0 : insets.right());
 }
 
 gfx::Insets ClientFrameViewLinux::GetInputInsets() const {
@@ -263,8 +270,8 @@ gfx::Size ClientFrameViewLinux::GetMaximumSize() const {
   return SizeWithDecorations(FramelessView::GetMaximumSize());
 }
 
-void ClientFrameViewLinux::Layout() {
-  FramelessView::Layout();
+void ClientFrameViewLinux::Layout(PassKey) {
+  LayoutSuperclass<FramelessView>(this);
 
   if (frame_->IsFullscreen()) {
     // Just hide everything and return.
@@ -276,9 +283,11 @@ void ClientFrameViewLinux::Layout() {
     return;
   }
 
+  bool tiled = tiled_edges().top || tiled_edges().left ||
+               tiled_edges().bottom || tiled_edges().right;
   frame_provider_ =
       ui::LinuxUiTheme::GetForProfile(nullptr)->GetWindowFrameProvider(
-          !host_supports_client_frame_shadow_, frame_->IsMaximized());
+          !host_supports_client_frame_shadow_, tiled, frame_->IsMaximized());
 
   UpdateButtonImages();
   LayoutButtons();
@@ -295,12 +304,8 @@ void ClientFrameViewLinux::OnPaint(gfx::Canvas* canvas) {
   if (!frame_->IsFullscreen()) {
     frame_provider_->PaintWindowFrame(canvas, GetLocalBounds(),
                                       GetTitlebarBounds().bottom(),
-                                      ShouldPaintAsActive(), tiled_edges());
+                                      ShouldPaintAsActive(), GetInputInsets());
   }
-}
-
-const char* ClientFrameViewLinux::GetClassName() const {
-  return kViewClassName;
 }
 
 void ClientFrameViewLinux::PaintAsActiveChanged() {
@@ -309,13 +314,13 @@ void ClientFrameViewLinux::PaintAsActiveChanged() {
 
 void ClientFrameViewLinux::UpdateThemeValues() {
   gtk::GtkCssContext window_context =
-      gtk::AppendCssNodeToStyleContext({}, "GtkWindow#window.background.csd");
+      gtk::AppendCssNodeToStyleContext({}, "window.background.csd");
   gtk::GtkCssContext headerbar_context = gtk::AppendCssNodeToStyleContext(
-      {}, "GtkHeaderBar#headerbar.default-decoration.titlebar");
-  gtk::GtkCssContext title_context = gtk::AppendCssNodeToStyleContext(
-      headerbar_context, "GtkLabel#label.title");
+      {}, "headerbar.default-decoration.titlebar");
+  gtk::GtkCssContext title_context =
+      gtk::AppendCssNodeToStyleContext(headerbar_context, "label.title");
   gtk::GtkCssContext button_context = gtk::AppendCssNodeToStyleContext(
-      headerbar_context, "GtkButton#button.image-button");
+      headerbar_context, "button.image-button");
 
   gtk_style_context_set_parent(headerbar_context, window_context);
   gtk_style_context_set_parent(title_context, headerbar_context);
@@ -374,9 +379,9 @@ void ClientFrameViewLinux::UpdateButtonImages() {
          state_id++) {
       views::Button::ButtonState state =
           static_cast<views::Button::ButtonState>(state_id);
-      button.button->SetImage(
-          state, nav_button_provider_->GetImage(
-                     button.type, ButtonStateToNavButtonProviderState(state)));
+      button.button->SetImageModel(
+          state, ui::ImageModel::FromImageSkia(nav_button_provider_->GetImage(
+                     button.type, ButtonStateToNavButtonProviderState(state))));
     }
   }
 }
@@ -495,5 +500,11 @@ views::View* ClientFrameViewLinux::TargetForRect(views::View* root,
                                                  const gfx::Rect& rect) {
   return views::NonClientFrameView::TargetForRect(root, rect);
 }
+
+int ClientFrameViewLinux::GetTranslucentTopAreaHeight() const {
+  return 0;
+}
+
+BEGIN_METADATA(ClientFrameViewLinux) END_METADATA
 
 }  // namespace electron

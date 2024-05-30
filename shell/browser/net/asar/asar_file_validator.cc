@@ -39,18 +39,17 @@ void AsarFileValidator::OnRead(base::span<char> buffer,
     if (current_block_ > max_block_) {
       LOG(FATAL)
           << "Unexpected number of blocks while validating ASAR file stream";
-      return;
     }
 
     // Create a hash if we don't have one yet
     if (!current_hash_) {
       current_hash_byte_count_ = 0;
       switch (integrity_.algorithm) {
-        case HashAlgorithm::SHA256:
+        case HashAlgorithm::kSHA256:
           current_hash_ =
               crypto::SecureHash::Create(crypto::SecureHash::SHA256);
           break;
-        case HashAlgorithm::NONE:
+        case HashAlgorithm::kNone:
           CHECK(false);
           break;
       }
@@ -70,7 +69,6 @@ void AsarFileValidator::OnRead(base::span<char> buffer,
     if (current_hash_byte_count_ == block_size && !FinishBlock()) {
       LOG(FATAL) << "Failed to validate block while streaming ASAR file: "
                  << current_block_;
-      return;
     }
   }
 }
@@ -105,7 +103,6 @@ bool AsarFileValidator::FinishBlock() {
     std::vector<uint8_t> abandoned_buffer(bytes_needed);
     if (!file_.ReadAndCheck(offset, abandoned_buffer)) {
       LOG(FATAL) << "Failed to read required portion of streamed ASAR archive";
-      return false;
     }
 
     current_hash_->Update(&abandoned_buffer.front(), bytes_needed);

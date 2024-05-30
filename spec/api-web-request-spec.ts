@@ -1,13 +1,16 @@
 import { expect } from 'chai';
-import * as http from 'http';
-import * as qs from 'querystring';
-import * as path from 'path';
-import * as url from 'url';
+import * as http from 'node:http';
+import * as http2 from 'node:http2';
+import * as qs from 'node:querystring';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import * as url from 'node:url';
 import * as WebSocket from 'ws';
 import { ipcMain, protocol, session, WebContents, webContents } from 'electron/main';
-import { Socket } from 'net';
-import { listen } from './lib/spec-helpers';
-import { once } from 'events';
+import { Socket } from 'node:net';
+import { listen, defer } from './lib/spec-helpers';
+import { once } from 'node:events';
+import { ReadableStream } from 'node:stream/web';
 
 const fixturesPath = path.resolve(__dirname, 'fixtures');
 
@@ -19,7 +22,10 @@ describe('webRequest module', () => {
       res.setHeader('Location', 'http://' + req.rawHeaders[1]);
       res.end();
     } else if (req.url === '/contentDisposition') {
-      res.setHeader('content-disposition', [' attachment; filename=aa%E4%B8%ADaa.txt']);
+      res.writeHead(200, [
+        'content-disposition',
+        Buffer.from('attachment; filename=aa中aa.txt').toString('binary')
+      ]);
       const content = req.url;
       res.end(content);
     } else {
@@ -35,14 +41,32 @@ describe('webRequest module', () => {
     }
   });
   let defaultURL: string;
+  let http2URL: string;
+
+  const certPath = path.join(fixturesPath, 'certificates');
+  const h2server = http2.createSecureServer({
+    key: fs.readFileSync(path.join(certPath, 'server.key')),
+    cert: fs.readFileSync(path.join(certPath, 'server.pem'))
+  }, async (req, res) => {
+    if (req.method === 'POST') {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      res.end(Buffer.concat(chunks).toString('utf8'));
+    } else {
+      res.end('<html></html>');
+    }
+  });
 
   before(async () => {
     protocol.registerStringProtocol('cors', (req, cb) => cb(''));
     defaultURL = (await listen(server)).url + '/';
+    http2URL = (await listen(h2server)).url + '/';
+    console.log(http2URL);
   });
 
   after(() => {
     server.close();
+    h2server.close();
     protocol.unregisterProtocol('cors');
   });
 
@@ -50,6 +74,8 @@ describe('webRequest module', () => {
   // NB. sandbox: true is used because it makes navigations much (~8x) faster.
   before(async () => {
     contents = (webContents as typeof ElectronInternal.WebContents).create({ sandbox: true });
+    // const w = new BrowserWindow({webPreferences: {sandbox: true}})
+    // contents = w.webContents
     await contents.loadFile(path.join(fixturesPath, 'pages', 'fetch.html'));
   });
   after(() => contents.destroy());
@@ -155,11 +181,97 @@ describe('webRequest module', () => {
         callback({ cancel: true });
       });
       const fileURL = url.format({
-        pathname: path.join(fixturesPath, 'blank.html').replace(/\\/g, '/'),
+        pathname: path.join(fixturesPath, 'blank.html').replaceAll('\\', '/'),
         protocol: 'file',
         slashes: true
       });
       await expect(ajax(fileURL)).to.eventually.be.rejected();
+    });
+
+    it('can handle a streaming upload', async () => {
+      // Streaming fetch uploads are only supported on HTTP/2, which is only
+      // supported over TLS, so...
+      session.defaultSession.setCertificateVerifyProc((req, cb) => cb(0));
+      defer(() => {
+        session.defaultSession.setCertificateVerifyProc(null);
+      });
+      const contents = (webContents as typeof ElectronInternal.WebContents).create({ sandbox: true });
+      defer(() => contents.close());
+      await contents.loadURL(http2URL);
+
+      ses.webRequest.onBeforeRequest((details, callback) => {
+        callback({});
+      });
+
+      const result = await contents.executeJavaScript(`
+        const stream = new ReadableStream({
+          async start(controller) {
+            controller.enqueue('hello world');
+            controller.close();
+          },
+        }).pipeThrough(new TextEncoderStream());
+        fetch("${http2URL}", {
+          method: 'POST',
+          body: stream,
+          duplex: 'half',
+        }).then(r => r.text())
+      `);
+      expect(result).to.equal('hello world');
+    });
+
+    it('can handle a streaming upload if the uploadData is read', async () => {
+      // Streaming fetch uploads are only supported on HTTP/2, which is only
+      // supported over TLS, so...
+      session.defaultSession.setCertificateVerifyProc((req, cb) => cb(0));
+      defer(() => {
+        session.defaultSession.setCertificateVerifyProc(null);
+      });
+      const contents = (webContents as typeof ElectronInternal.WebContents).create({ sandbox: true });
+      defer(() => contents.close());
+      await contents.loadURL(http2URL);
+
+      function makeStreamFromPipe (pipe: any): ReadableStream {
+        const buf = new Uint8Array(1024 * 1024 /* 1 MB */);
+        return new ReadableStream({
+          async pull (controller) {
+            try {
+              const rv = await pipe.read(buf);
+              if (rv > 0) {
+                controller.enqueue(buf.subarray(0, rv));
+              } else {
+                controller.close();
+              }
+            } catch (e) {
+              controller.error(e);
+            }
+          }
+        });
+      }
+
+      ses.webRequest.onBeforeRequest(async (details, callback) => {
+        const chunks = [];
+        for await (const chunk of makeStreamFromPipe((details.uploadData[0] as any).body)) { chunks.push(chunk); }
+        callback({});
+      });
+
+      const result = await contents.executeJavaScript(`
+        const stream = new ReadableStream({
+          async start(controller) {
+            controller.enqueue('hello world');
+            controller.close();
+          },
+        }).pipeThrough(new TextEncoderStream());
+        fetch("${http2URL}", {
+          method: 'POST',
+          body: stream,
+          duplex: 'half',
+        }).then(r => r.text())
+      `);
+
+      // NOTE: since the upload stream was consumed by the onBeforeRequest
+      // handler, it can't be used again to upload to the actual server.
+      // This is a limitation of the WebRequest API.
+      expect(result).to.equal('');
     });
   });
 
@@ -283,7 +395,7 @@ describe('webRequest module', () => {
         onSendHeadersCalled = true;
       });
       await ajax(url.format({
-        pathname: path.join(fixturesPath, 'blank.html').replace(/\\/g, '/'),
+        pathname: path.join(fixturesPath, 'blank.html').replaceAll('\\', '/'),
         protocol: 'file',
         slashes: true
       }));
@@ -366,7 +478,8 @@ describe('webRequest module', () => {
         callback({});
       });
       const { data, headers } = await ajax(defaultURL + 'contentDisposition');
-      expect(headers).to.to.have.property('content-disposition', 'attachment; filename=aa%E4%B8%ADaa.txt');
+      const disposition = Buffer.from('attachment; filename=aa中aa.txt').toString('binary');
+      expect(headers).to.to.have.property('content-disposition', disposition);
       expect(data).to.equal('/contentDisposition');
     });
 
@@ -487,7 +600,7 @@ describe('webRequest module', () => {
         });
       });
       server.on('upgrade', function upgrade (request, socket, head) {
-        const pathname = require('url').parse(request.url).pathname;
+        const pathname = require('node:url').parse(request.url).pathname;
         if (pathname === '/websocket') {
           reqHeaders[request.url!] = request.headers;
           wss.handleUpgrade(request, socket as Socket, head, function done (ws) {
@@ -509,7 +622,7 @@ describe('webRequest module', () => {
         callback({ requestHeaders: details.requestHeaders });
       });
       ses.webRequest.onHeadersReceived((details, callback) => {
-        const pathname = require('url').parse(details.url).pathname;
+        const pathname = require('node:url').parse(details.url).pathname;
         receivedHeaders[pathname] = details.responseHeaders;
         callback({ cancel: false });
       });

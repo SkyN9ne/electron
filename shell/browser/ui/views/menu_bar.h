@@ -5,10 +5,13 @@
 #ifndef ELECTRON_SHELL_BROWSER_UI_VIEWS_MENU_BAR_H_
 #define ELECTRON_SHELL_BROWSER_UI_VIEWS_MENU_BAR_H_
 
+#include "base/memory/raw_ptr.h"
 #include "shell/browser/native_window_observer.h"
 #include "shell/browser/ui/electron_menu_model.h"
 #include "shell/browser/ui/views/menu_delegate.h"
 #include "shell/browser/ui/views/root_view.h"
+#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/accessible_pane_view.h"
 
 namespace views {
@@ -18,11 +21,11 @@ class MenuButton;
 namespace electron {
 
 class MenuBar : public views::AccessiblePaneView,
-                public MenuDelegate::Observer,
-                public NativeWindowObserver {
- public:
-  static const char kViewClassName[];
+                private MenuDelegate::Observer,
+                private NativeWindowObserver {
+  METADATA_HEADER(MenuBar, views::AccessiblePaneView)
 
+ public:
   MenuBar(NativeWindow* window, RootView* root_view);
   ~MenuBar() override;
 
@@ -50,6 +53,9 @@ class MenuBar : public views::AccessiblePaneView,
                                     ElectronMenuModel** menu_model,
                                     views::MenuButton** button);
 
+  void ViewHierarchyChanged(
+      const views::ViewHierarchyChangedDetails& details) override;
+
  private:
   // MenuDelegate::Observer:
   void OnBeforeExecuteCommand() override;
@@ -68,7 +74,6 @@ class MenuBar : public views::AccessiblePaneView,
   void OnDidChangeFocus(View* focused_before, View* focused_now) override;
 
   // views::View:
-  const char* GetClassName() const override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
 
   void ButtonPressed(size_t id, const ui::Event& event);
@@ -84,9 +89,9 @@ class MenuBar : public views::AccessiblePaneView,
   SkColor disabled_color_;
 #endif
 
-  NativeWindow* window_;
-  RootView* root_view_;
-  ElectronMenuModel* menu_model_ = nullptr;
+  raw_ptr<NativeWindow> window_;
+  raw_ptr<RootView> root_view_;
+  raw_ptr<ElectronMenuModel> menu_model_ = nullptr;
   bool accelerator_installed_ = false;
 };
 

@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Samuel Attard <samuel.r.attard@gmail.com>
+Date: Wed, 8 Feb 2023 02:54:05 -0800
+Subject: test: formally mark some tests as flaky
+
+Instead of disabling the tests, flag them as flaky so they still run
+but don't cause CI failures on flakes.
+
+diff --git a/test/parallel/parallel.status b/test/parallel/parallel.status
+index 54de053b4046b283fd4bb5b74531723dfa52dfce..762c15fa661314095a1352eeac07bef544883585 100644
+--- a/test/parallel/parallel.status
++++ b/test/parallel/parallel.status
+@@ -5,6 +5,16 @@ prefix parallel
+ # sample-test                        : PASS,FLAKY
+ 
+ [true] # This section applies to all platforms
++# https://github.com/nodejs/node/pull/50327
++# Currently there's no reliable way to test it.
++test-diagnostics-channel-memory-leak: SKIP
++test-inspector-multisession-ws: PASS, FLAKY
++test-heapsnapshot-near-heap-limit-by-api-in-worker: PASS, FLAKY
++test-heapsnapshot-near-heap-limit-worker: PASS, FLAKY
++test-fetch: PASS, FLAKY
++test-cluster-bind-privileged-port: PASS, FLAKY
++test-cluster-shared-handle-bind-privileged-port: PASS, FLAKY
++test-debugger-random-port-with-inspect-port: PASS, FLAKY
+ 
+ # https://github.com/nodejs/node/issues/51862
+ test-fs-read-stream-concurrent-reads: PASS, FLAKY
+diff --git a/test/sequential/sequential.status b/test/sequential/sequential.status
+index ccab879b6e5fcdcc0d3a4b790b97db94d92f1a59..11339325697ae98f6996101163679590451c0b81 100644
+--- a/test/sequential/sequential.status
++++ b/test/sequential/sequential.status
+@@ -7,6 +7,18 @@ prefix sequential
+ [true] # This section applies to all platforms
+ # https://github.com/nodejs/node/issues/27611#issuecomment-613100468
+ test-cpu-prof-dir-worker: PASS, FLAKY
++test-cpu-prof-dir-and-name: PASS, FLAKY
++test-cpu-prof-drained: PASS, FLAKY
++test-cpu-prof-default: PASS, FLAKY
++test-cpu-prof-dir-absolute: PASS, FLAKY
++test-cpu-prof-dir-relative: PASS, FLAKY
++test-cpu-prof-exit: PASS, FLAKY
++test-cpu-prof-kill: PASS, FLAKY
++test-cpu-prof-name: PASS, FLAKY
++test-cpu-prof-worker-argv: PASS, FLAKY
++test-diagnostic-dir-cpu-prof: PASS, FLAKY
++test-worker-prof: PASS, FLAKY
++test-inspector-stop-profile-after-done: PASS, FLAKY
+ # https://github.com/nodejs/node/issues/44898
+ test-watch-mode: PASS, FLAKY
+ test-watch-mode-inspect: PASS, FLAKY

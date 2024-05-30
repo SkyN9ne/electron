@@ -30,17 +30,14 @@ const SkColor kDefaultColor = SkColorSetARGB(255, 233, 233, 233);
 
 }  // namespace
 
-const char MenuBar::kViewClassName[] = "ElectronMenuBar";
-
 MenuBar::MenuBar(NativeWindow* window, RootView* root_view)
     : background_color_(kDefaultColor), window_(window), root_view_(root_view) {
   const ui::NativeTheme* theme = root_view_->GetNativeTheme();
-  RefreshColorCache(theme);
-  UpdateViewColors();
 #if BUILDFLAG(IS_WIN)
   SetBackground(views::CreateThemedSolidBackground(ui::kColorMenuBackground));
-  background_color_ = GetBackground()->get_color();
 #endif
+  RefreshColorCache(theme);
+  UpdateViewColors();
   SetFocusBehavior(FocusBehavior::ALWAYS);
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal));
@@ -57,14 +54,14 @@ void MenuBar::SetMenu(ElectronMenuModel* model) {
 }
 
 void MenuBar::SetAcceleratorVisibility(bool visible) {
-  for (auto* child : GetChildrenInZOrder())
+  for (views::View* child : GetChildrenInZOrder())
     static_cast<SubmenuButton*>(child)->SetAcceleratorVisibility(visible);
 }
 
 MenuBar::View* MenuBar::FindAccelChild(char16_t key) {
   if (key == 0)
     return nullptr;
-  for (auto* child : GetChildrenInZOrder()) {
+  for (views::View* child : GetChildrenInZOrder()) {
     if (static_cast<SubmenuButton*>(child)->accelerator() == key)
       return child;
   }
@@ -170,10 +167,6 @@ void MenuBar::OnDidChangeFocus(View* focused_before, View* focused_now) {
     root_view_->RestoreFocus();
 }
 
-const char* MenuBar::GetClassName() const {
-  return kViewClassName;
-}
-
 void MenuBar::ButtonPressed(size_t id, const ui::Event& event) {
   // Hide the accelerator when a submenu is activated.
   SetAcceleratorVisibility(pane_has_focus());
@@ -191,7 +184,7 @@ void MenuBar::ButtonPressed(size_t id, const ui::Event& event) {
   }
 
   SubmenuButton* source = nullptr;
-  for (auto* child : children()) {
+  for (views::View* child : children()) {
     auto* button = static_cast<SubmenuButton*>(child);
     int button_id = button->GetID();
     if (button_id >= 0 && static_cast<size_t>(button_id) == id) {
@@ -209,6 +202,14 @@ void MenuBar::ButtonPressed(size_t id, const ui::Event& event) {
   menu_delegate->AddObserver(this);
 }
 
+void MenuBar::ViewHierarchyChanged(
+    const views::ViewHierarchyChangedDetails& details) {
+  views::AccessiblePaneView::ViewHierarchyChanged(details);
+#if BUILDFLAG(IS_WIN)
+  background_color_ = GetBackground()->get_color();
+#endif
+}
+
 void MenuBar::RefreshColorCache(const ui::NativeTheme* theme) {
   if (theme) {
 #if BUILDFLAG(IS_LINUX)
@@ -217,6 +218,8 @@ void MenuBar::RefreshColorCache(const ui::NativeTheme* theme) {
         gtk::GetFgColor("GtkMenuBar#menubar GtkMenuItem#menuitem GtkLabel");
     disabled_color_ = gtk::GetFgColor(
         "GtkMenuBar#menubar GtkMenuItem#menuitem:disabled GtkLabel");
+#elif BUILDFLAG(IS_WIN)
+    background_color_ = GetBackground()->get_color();
 #endif
   }
 }
@@ -245,7 +248,7 @@ void MenuBar::UpdateViewColors() {
 #if BUILDFLAG(IS_LINUX)
   const auto& textColor =
       window_->IsFocused() ? enabled_color_ : disabled_color_;
-  for (auto* child : GetChildrenInZOrder()) {
+  for (views::View* child : GetChildrenInZOrder()) {
     auto* button = static_cast<SubmenuButton*>(child);
     button->SetTextColor(views::Button::STATE_NORMAL, textColor);
     button->SetTextColor(views::Button::STATE_DISABLED, disabled_color_);
@@ -254,11 +257,14 @@ void MenuBar::UpdateViewColors() {
     button->SetUnderlineColor(textColor);
   }
 #elif BUILDFLAG(IS_WIN)
-  for (auto* child : GetChildrenInZOrder()) {
+  for (views::View* child : GetChildrenInZOrder()) {
     auto* button = static_cast<SubmenuButton*>(child);
     button->SetUnderlineColor(color_utils::GetSysSkColor(COLOR_MENUTEXT));
   }
 #endif
 }
+
+BEGIN_METADATA(MenuBar)
+END_METADATA
 
 }  // namespace electron

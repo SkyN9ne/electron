@@ -19,6 +19,10 @@ declare namespace Electron {
     setAppPath(path: string | null): void;
   }
 
+  interface AutoUpdater {
+    isVersionAllowedForUpdate?(currentVersion: string, targetVersion: string): boolean;
+  }
+
   type TouchBarItemType = NonNullable<Electron.TouchBarConstructorOptions['items']>[0];
 
   interface BaseWindow {
@@ -32,9 +36,18 @@ declare namespace Electron {
     _setEscapeTouchBarItem: (item: TouchBarItemType | {}) => void;
     _refreshTouchBarItem: (itemID: string) => void;
     _getWindowButtonVisibility: () => boolean;
+    _getAlwaysOnTopLevel: () => string;
+    devToolsWebContents: WebContents;
     frameName: string;
     on(event: '-touch-bar-interaction', listener: (event: Event, itemID: string, details: any) => void): this;
     removeListener(event: '-touch-bar-interaction', listener: (event: Event, itemID: string, details: any) => void): this;
+
+    _browserViews: BrowserView[];
+  }
+
+  interface BrowserView {
+    ownerWindow: BrowserWindow | null
+    webContentsView: WebContentsView
   }
 
   interface BrowserWindowConstructorOptions {
@@ -64,24 +77,25 @@ declare namespace Electron {
     equal(other: WebContents): boolean;
     browserWindowOptions: BrowserWindowConstructorOptions;
     _windowOpenHandler: ((details: Electron.HandlerDetails) => any) | null;
-    _callWindowOpenHandler(event: any, details: Electron.HandlerDetails): {browserWindowConstructorOptions: Electron.BrowserWindowConstructorOptions | null, outlivesOpener: boolean};
+    _callWindowOpenHandler(event: any, details: Electron.HandlerDetails): {browserWindowConstructorOptions: Electron.BrowserWindowConstructorOptions | null, outlivesOpener: boolean, createWindow?: Electron.CreateWindowFunction};
     _setNextChildWebPreferences(prefs: Partial<Electron.BrowserWindowConstructorOptions['webPreferences']> & Pick<Electron.BrowserWindowConstructorOptions, 'backgroundColor'>): void;
     _send(internal: boolean, channel: string, args: any): boolean;
     _sendInternal(channel: string, ...args: any[]): void;
     _printToPDF(options: any): Promise<Buffer>;
     _print(options: any, callback?: (success: boolean, failureReason: string) => void): void;
-    _getPrinters(): Electron.PrinterInfo[];
     _getPrintersAsync(): Promise<Electron.PrinterInfo[]>;
     _init(): void;
+    _getNavigationEntryAtIndex(index: number): Electron.EntryAtIndex | null;
+    _getActiveIndex(): number;
+    _historyLength(): number;
     canGoToIndex(index: number): boolean;
-    getActiveIndex(): number;
-    length(): number;
     destroy(): void;
     // <webview>
     attachToIframe(embedderWebContents: Electron.WebContents, embedderFrameId: number): void;
     detachFromOuterFrame(): void;
     setEmbedder(embedder: Electron.WebContents): void;
     viewInstanceId: number;
+    _setOwnerWindow(w: BaseWindow | null): void;
   }
 
   interface WebFrameMain {
@@ -100,6 +114,8 @@ declare namespace Electron {
     type?: 'backgroundPage' | 'window' | 'browserView' | 'remote' | 'webview' | 'offscreen';
   }
 
+  type CreateWindowFunction = (options: BrowserWindowConstructorOptions) => WebContents;
+
   interface Menu {
     _init(): void;
     _isCommandIdChecked(id: string): boolean;
@@ -115,7 +131,7 @@ declare namespace Electron {
     commandsMap: Record<string, MenuItem>;
     groupsMap: Record<string, MenuItem[]>;
     getItemCount(): number;
-    popupAt(window: BaseWindow, x: number, y: number, positioning: number, callback: () => void): void;
+    popupAt(window: BaseWindow, x: number, y: number, positioning: number, sourceType: Required<Electron.PopupOptions>['sourceType'], callback: () => void): void;
     closePopupAt(id: number): void;
     setSublabel(index: number, label: string): void;
     setToolTip(index: number, tooltip: string): void;
@@ -150,22 +166,6 @@ declare namespace Electron {
     _replyChannel: ReplyChannel;
   }
 
-  class View {}
-
-  // Experimental views API
-  class BaseWindow {
-    constructor(args: {show: boolean})
-    setContentView(view: View): void
-    static fromId(id: number): BaseWindow;
-    static getAllWindows(): BaseWindow[];
-    isFocused(): boolean;
-    static getFocusedWindow(): BaseWindow | undefined;
-    setMenu(menu: Menu): void;
-  }
-  class WebContentsView {
-    constructor(options: BrowserWindowConstructorOptions)
-  }
-
   // Deprecated / undocumented BrowserWindow methods
   interface BrowserWindow {
     getURL(): string;
@@ -182,10 +182,9 @@ declare namespace Electron {
     setBackgroundThrottling(allowed: boolean): void;
   }
 
-  namespace Main {
-    class BaseWindow extends Electron.BaseWindow {}
-    class View extends Electron.View {}
-    class WebContentsView extends Electron.WebContentsView {}
+  interface Protocol {
+    registerProtocol(scheme: string, handler: any): boolean;
+    interceptProtocol(scheme: string, handler: any): boolean;
   }
 }
 
@@ -237,6 +236,10 @@ declare namespace ElectronInternal {
     custom_display_name: string,
     height_microns: number,
     width_microns: number,
+    imageable_area_left_microns?: number,
+    imageable_area_bottom_microns?: number,
+    imageable_area_right_microns?: number,
+    imageable_area_top_microns?: number,
     is_default?: 'true',
   }
 

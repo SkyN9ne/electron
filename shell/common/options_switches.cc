@@ -62,9 +62,6 @@ const char kUseContentSize[] = "useContentSize";
 // Whether window zoom should be to page width.
 const char kZoomToPageWidth[] = "zoomToPageWidth";
 
-// Whether always show title text in full screen is enabled.
-const char kFullscreenWindowTitle[] = "fullscreenWindowTitle";
-
 // The requested title bar style for the window
 const char kTitleBarStyle[] = "titleBarStyle";
 
@@ -110,6 +107,9 @@ const char kWebPreferences[] = "webPreferences";
 // Add a vibrancy effect to the browser window
 const char kVibrancyType[] = "vibrancy";
 
+// Add a vibrancy effect to the browser window.
+const char kBackgroundMaterial[] = "backgroundMaterial";
+
 // Specify how the material appearance should reflect window activity state on
 // macOS.
 const char kVisualEffectState[] = "visualEffectState";
@@ -119,8 +119,6 @@ const char kZoomFactor[] = "zoomFactor";
 
 // Script that will be loaded by guest WebContents before other scripts.
 const char kPreloadScript[] = "preload";
-
-const char kPreloadScripts[] = "preloadScripts";
 
 // Enable the node integration.
 const char kNodeIntegration[] = "nodeIntegration";
@@ -170,9 +168,6 @@ const char kJavaScript[] = "javascript";
 // Enables image support.
 const char kImages[] = "images";
 
-// Image animation policy.
-const char kImageAnimationPolicy[] = "imageAnimationPolicy";
-
 // Make TextArea elements resizable.
 const char kTextAreasAreResizable[] = "textAreasAreResizable";
 
@@ -188,8 +183,6 @@ const char kHiddenPage[] = "hiddenPage";
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
 const char kSpellcheck[] = "spellcheck";
 #endif
-
-const char kEnableWebSQL[] = "enableWebSQL";
 
 const char kEnablePreferredSizeMode[] = "enablePreferredSizeMode";
 
@@ -232,6 +225,9 @@ const char kCORSSchemes[] = "cors-schemes";
 // Register schemes as streaming responses.
 const char kStreamingSchemes[] = "streaming-schemes";
 
+// Register schemes as supporting V8 code cache.
+const char kCodeCacheSchemes[] = "code-cache-schemes";
+
 // The browser process app model ID
 const char kAppUserModelId[] = "app-user-model-id";
 
@@ -268,8 +264,6 @@ const char kEnableAuthNegotiatePort[] = "enable-auth-negotiate-port";
 
 // If set, NTLM v2 is disabled for POSIX platforms.
 const char kDisableNTLMv2[] = "disable-ntlm-v2";
-
-const char kEnableWebSQL[] = "enable-websql";
 
 }  // namespace switches
 

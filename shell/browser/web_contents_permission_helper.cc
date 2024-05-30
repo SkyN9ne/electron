@@ -4,8 +4,7 @@
 
 #include "shell/browser/web_contents_permission_helper.h"
 
-#include <memory>
-#include <string>
+#include <string_view>
 #include <utility>
 
 #include "content/public/browser/browser_context.h"
@@ -19,7 +18,8 @@
 
 namespace {
 
-std::string MediaStreamTypeToString(blink::mojom::MediaStreamType type) {
+constexpr std::string_view MediaStreamTypeToString(
+    blink::mojom::MediaStreamType type) {
   switch (type) {
     case blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE:
       return "audio";
@@ -35,6 +35,18 @@ std::string MediaStreamTypeToString(blink::mojom::MediaStreamType type) {
 namespace electron {
 
 namespace {
+
+[[nodiscard]] content::DesktopMediaID GetScreenId(
+    const std::vector<std::string>& requested_video_device_ids) {
+  if (!requested_video_device_ids.empty() &&
+      !requested_video_device_ids.front().empty())
+    return content::DesktopMediaID::Parse(requested_video_device_ids.front());
+
+  // If the device id wasn't specified then this is a screen capture request
+  // (i.e. chooseDesktopMedia() API wasn't used to generate device id).
+  return content::DesktopMediaID(content::DesktopMediaID::TYPE_SCREEN,
+                                 -1 /* kFullDesktopScreenId */);
+}
 
 // Handles requests for legacy-style `navigator.getUserMedia(...)` calls.
 // This includes desktop capture through the chromeMediaSource /
@@ -65,20 +77,9 @@ void HandleUserMediaRequest(const content::MediaStreamRequest& request,
   }
   if (request.video_type ==
       blink::mojom::MediaStreamType::GUM_DESKTOP_VIDEO_CAPTURE) {
-    content::DesktopMediaID screen_id;
-    // If the device id wasn't specified then this is a screen capture request
-    // (i.e. chooseDesktopMedia() API wasn't used to generate device id).
-    if (request.requested_video_device_id.empty()) {
-      screen_id = content::DesktopMediaID(content::DesktopMediaID::TYPE_SCREEN,
-                                          -1 /* kFullDesktopScreenId */);
-    } else {
-      screen_id =
-          content::DesktopMediaID::Parse(request.requested_video_device_id);
-    }
-
     devices.video_device = blink::MediaStreamDevice(
         blink::mojom::MediaStreamType::GUM_DESKTOP_VIDEO_CAPTURE,
-        screen_id.ToString(), "Screen");
+        GetScreenId(request.requested_video_device_ids).ToString(), "Screen");
   }
 
   bool empty =
@@ -246,12 +247,20 @@ void WebContentsPermissionHelper::RequestPointerLockPermission(
     bool last_unlocked_by_target,
     base::OnceCallback<void(content::WebContents*, bool, bool, bool)>
         callback) {
+  RequestPermission(web_contents_->GetPrimaryMainFrame(),
+                    blink::PermissionType::POINTER_LOCK,
+                    base::BindOnce(std::move(callback), web_contents_,
+                                   user_gesture, last_unlocked_by_target),
+                    user_gesture);
+}
+
+void WebContentsPermissionHelper::RequestKeyboardLockPermission(
+    bool esc_key_locked,
+    base::OnceCallback<void(content::WebContents*, bool, bool)> callback) {
   RequestPermission(
       web_contents_->GetPrimaryMainFrame(),
-      static_cast<blink::PermissionType>(PermissionType::POINTER_LOCK),
-      base::BindOnce(std::move(callback), web_contents_, user_gesture,
-                     last_unlocked_by_target),
-      user_gesture);
+      blink::PermissionType::KEYBOARD_LOCK,
+      base::BindOnce(std::move(callback), web_contents_, esc_key_locked));
 }
 
 void WebContentsPermissionHelper::RequestOpenExternalPermission(
@@ -268,10 +277,10 @@ void WebContentsPermissionHelper::RequestOpenExternalPermission(
 }
 
 bool WebContentsPermissionHelper::CheckMediaAccessPermission(
-    const GURL& security_origin,
+    const url::Origin& security_origin,
     blink::mojom::MediaStreamType type) const {
   base::Value::Dict details;
-  details.Set("securityOrigin", security_origin.spec());
+  details.Set("securityOrigin", security_origin.GetURL().spec());
   details.Set("mediaType", MediaStreamTypeToString(type));
   // The permission type doesn't matter here, AUDIO_CAPTURE/VIDEO_CAPTURE
   // are presented as same type in content_converter.h.

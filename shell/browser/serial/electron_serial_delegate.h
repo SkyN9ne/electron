@@ -20,7 +20,7 @@ namespace electron {
 class SerialChooserController;
 
 class ElectronSerialDelegate : public content::SerialDelegate,
-                               public SerialChooserContext::PortObserver {
+                               private SerialChooserContext::PortObserver {
  public:
   ElectronSerialDelegate();
   ~ElectronSerialDelegate() override;
@@ -32,6 +32,7 @@ class ElectronSerialDelegate : public content::SerialDelegate,
   std::unique_ptr<content::SerialChooser> RunChooser(
       content::RenderFrameHost* frame,
       std::vector<blink::mojom::SerialPortFilterPtr> filters,
+      std::vector<device::BluetoothUUID> allowed_bluetooth_service_class_ids,
       content::SerialChooser::Callback callback) override;
   bool CanRequestPortPermission(content::RenderFrameHost* frame) override;
   bool HasPortPermission(content::RenderFrameHost* frame,
@@ -54,6 +55,8 @@ class ElectronSerialDelegate : public content::SerialDelegate,
   // SerialChooserContext::PortObserver:
   void OnPortAdded(const device::mojom::SerialPortInfo& port) override;
   void OnPortRemoved(const device::mojom::SerialPortInfo& port) override;
+  void OnPortConnectedStateChanged(
+      const device::mojom::SerialPortInfo& port) override {}
   void OnPortManagerConnectionError() override;
   void OnPermissionRevoked(const url::Origin& origin) override {}
   void OnSerialChooserContextShutdown() override;
@@ -64,6 +67,7 @@ class ElectronSerialDelegate : public content::SerialDelegate,
   SerialChooserController* AddControllerForFrame(
       content::RenderFrameHost* render_frame_host,
       std::vector<blink::mojom::SerialPortFilterPtr> filters,
+      std::vector<device::BluetoothUUID> allowed_bluetooth_service_class_ids,
       content::SerialChooser::Callback callback);
 
   base::ScopedObservation<SerialChooserContext,
@@ -83,9 +87,8 @@ class ElectronSerialDelegate : public content::SerialDelegate,
 namespace base {
 
 template <>
-struct base::ScopedObservationTraits<
-    electron::SerialChooserContext,
-    electron::SerialChooserContext::PortObserver> {
+struct ScopedObservationTraits<electron::SerialChooserContext,
+                               electron::SerialChooserContext::PortObserver> {
   static void AddObserver(
       electron::SerialChooserContext* source,
       electron::SerialChooserContext::PortObserver* observer) {

@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -82,7 +83,7 @@ class DataPipeReader {
     }
 
     // Read.
-    uint32_t length = remaining_size_;
+    size_t length = remaining_size_;
     result = data_pipe_->ReadData(head_, &length, MOJO_READ_DATA_FLAG_NONE);
     if (result == MOJO_RESULT_OK) {  // success
       remaining_size_ -= length;
@@ -129,7 +130,7 @@ class DataPipeReader {
   std::vector<char> buffer_;
 
   // The head of buffer.
-  char* head_ = nullptr;
+  raw_ptr<char, AllowPtrArithmetic> head_ = nullptr;
 
   // Remaining data to read.
   uint64_t remaining_size_ = 0;
@@ -159,6 +160,10 @@ v8::Local<v8::Promise> DataPipeHolder::ReadAll(v8::Isolate* isolate) {
 
   new DataPipeReader(std::move(promise), std::move(data_pipe_));
   return handle;
+}
+
+const char* DataPipeHolder::GetTypeName() {
+  return "DataPipeHolder";
 }
 
 // static

@@ -6,16 +6,18 @@
 #define ELECTRON_SHELL_COMMON_GIN_HELPER_PROMISE_H_
 
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
-#include "base/strings/string_piece.h"
+#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "shell/common/gin_converters/std_converter.h"
 #include "shell/common/gin_helper/locker.h"
 #include "shell/common/gin_helper/microtasks_scope.h"
+#include "shell/common/process_util.h"
 
 namespace gin_helper {
 
@@ -30,6 +32,7 @@ class PromiseBase {
  public:
   explicit PromiseBase(v8::Isolate* isolate);
   PromiseBase(v8::Isolate* isolate, v8::Local<v8::Promise::Resolver> handle);
+  PromiseBase();
   ~PromiseBase();
 
   // disable copy
@@ -44,19 +47,20 @@ class PromiseBase {
   //
   // Note: The parameter type is PromiseBase&& so it can take the instances of
   // Promise<T> type.
-  static void RejectPromise(PromiseBase&& promise, base::StringPiece errmsg) {
-    if (gin_helper::Locker::IsBrowserProcess() &&
+  static void RejectPromise(PromiseBase&& promise,
+                            const std::string_view errmsg) {
+    if (electron::IsBrowserProcess() &&
         !content::BrowserThread::CurrentlyOn(content::BrowserThread::UI)) {
       content::GetUIThreadTaskRunner({})->PostTask(
           FROM_HERE,
           base::BindOnce(
-              // Note that this callback can not take StringPiece,
+              // Note that this callback can not take std::string_view,
               // as StringPiece only references string internally and
               // will blow when a temporary string is passed.
               [](PromiseBase&& promise, std::string str) {
                 promise.RejectWithErrorMessage(str);
               },
-              std::move(promise), std::string(errmsg.data(), errmsg.size())));
+              std::move(promise), std::string{errmsg}));
     } else {
       promise.RejectWithErrorMessage(errmsg);
     }
@@ -64,7 +68,7 @@ class PromiseBase {
 
   v8::Maybe<bool> Reject();
   v8::Maybe<bool> Reject(v8::Local<v8::Value> except);
-  v8::Maybe<bool> RejectWithErrorMessage(base::StringPiece message);
+  v8::Maybe<bool> RejectWithErrorMessage(std::string_view message);
 
   v8::Local<v8::Context> GetContext() const;
   v8::Local<v8::Promise> GetHandle() const;
@@ -75,7 +79,7 @@ class PromiseBase {
   v8::Local<v8::Promise::Resolver> GetInner() const;
 
  private:
-  v8::Isolate* isolate_;
+  raw_ptr<v8::Isolate> isolate_;
   v8::Global<v8::Context> context_;
   v8::Global<v8::Promise::Resolver> resolver_;
 };
@@ -88,7 +92,7 @@ class Promise : public PromiseBase {
 
   // Helper for resolving the promise with |result|.
   static void ResolvePromise(Promise<RT> promise, RT result) {
-    if (gin_helper::Locker::IsBrowserProcess() &&
+    if (electron::IsBrowserProcess() &&
         !content::BrowserThread::CurrentlyOn(content::BrowserThread::UI)) {
       content::GetUIThreadTaskRunner({})->PostTask(
           FROM_HERE, base::BindOnce([](Promise<RT> promise,

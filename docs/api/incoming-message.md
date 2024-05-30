@@ -2,7 +2,7 @@
 
 > Handle responses to HTTP/HTTPS requests.
 
-Process: [Main](../glossary.md#main-process)<br />
+Process: [Main](../glossary.md#main-process), [Utility](../glossary.md#utility-process)<br />
 _This class is not exported from the `'electron'` module. It is only available as a return value of other methods in the Electron API._
 
 `IncomingMessage` implements the [Readable Stream](https://nodejs.org/api/stream.html#stream_readable_streams)
@@ -89,7 +89,7 @@ tuples. So, the even-numbered offsets are key values, and the odd-numbered
 offsets are the associated values. Header names are not lowercased, and
 duplicates are not merged.
 
-```javascript
+```js @ts-type={response:Electron.IncomingMessage}
 // Prints something like:
 //
 // [ 'user-agent',
@@ -100,5 +100,5 @@ duplicates are not merged.
 //   '127.0.0.1:8000',
 //   'ACCEPT',
 //   '*/*' ]
-console.log(request.rawHeaders)
+console.log(response.rawHeaders)
 ```

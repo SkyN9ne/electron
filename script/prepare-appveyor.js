@@ -1,9 +1,9 @@
 if (!process.env.CI) require('dotenv-safe').load();
 
-const assert = require('assert');
-const fs = require('fs');
+const assert = require('node:assert');
+const fs = require('node:fs');
 const got = require('got');
-const path = require('path');
+const path = require('node:path');
 const { handleGitCall, ELECTRON_DIR } = require('./lib/utils.js');
 const { Octokit } = require('@octokit/rest');
 const octokit = new Octokit();
@@ -14,8 +14,8 @@ const ROLLER_BRANCH_PATTERN = /^roller\/chromium$/;
 
 const DEFAULT_BUILD_CLOUD_ID = '1598';
 const DEFAULT_BUILD_CLOUD = 'electronhq-16-core';
-const DEFAULT_BAKE_BASE_IMAGE = 'e-111.0.5560.0-node18';
-const DEFAULT_BUILD_IMAGE = 'e-111.0.5560.0-node18';
+const DEFAULT_BAKE_BASE_IMAGE = 'base-bake-image';
+const DEFAULT_BUILD_IMAGE = 'base-bake-image';
 
 const appveyorBakeJob = 'electron-bake-image';
 const appVeyorJobs = {
@@ -70,7 +70,14 @@ async function checkAppVeyorImage (options) {
     const { cloudSettings } = settings;
     return cloudSettings.images.find(image => image.name === `${options.imageVersion}`) || null;
   } catch (err) {
-    console.log('Could not call AppVeyor: ', err);
+    if (err.response?.body) {
+      console.error('Could not call AppVeyor: ', {
+        statusCode: err.response.statusCode,
+        body: JSON.parse(err.response.body)
+      });
+    } else {
+      console.error('Error calling AppVeyor:', err);
+    }
   }
 }
 
@@ -94,7 +101,9 @@ function useAppVeyorImage (targetBranch, options) {
     assert(validJobs.includes(options.job), `Unknown AppVeyor CI job name: ${options.job}.  Valid values are: ${validJobs}.`);
     callAppVeyorBuildJobs(targetBranch, options.job, options);
   } else {
-    validJobs.forEach((job) => callAppVeyorBuildJobs(targetBranch, job, options));
+    for (const job of validJobs) {
+      callAppVeyorBuildJobs(targetBranch, job, options);
+    }
   }
 }
 
@@ -108,7 +117,6 @@ async function callAppVeyorBuildJobs (targetBranch, job, options) {
     ELECTRON_OUT_DIR: 'Default',
     ELECTRON_ENABLE_STACK_DUMPING: 1,
     ELECTRON_ALSO_LOG_TO_STDERR: 1,
-    GOMA_FALLBACK_ON_AUTH_FAILURE: true,
     DEPOT_TOOLS_WIN_TOOLCHAIN: 0,
     PYTHONIOENCODING: 'UTF-8'
   };
@@ -182,8 +190,7 @@ async function prepareAppVeyorImage (opts) {
   if (ROLLER_BRANCH_PATTERN.test(branch)) {
     useAppVeyorImage(branch, { ...opts, version: DEFAULT_BUILD_IMAGE, cloudId: DEFAULT_BUILD_CLOUD_ID });
   } else {
-    // eslint-disable-next-line no-control-regex
-    const versionRegex = new RegExp('chromium_version\':\n +\'(.+?)\',', 'm');
+    const versionRegex = /chromium_version':\n +'(.+?)',/m;
     const deps = fs.readFileSync(path.resolve(__dirname, '..', 'DEPS'), 'utf8');
     const [, CHROMIUM_VERSION] = versionRegex.exec(deps);
 

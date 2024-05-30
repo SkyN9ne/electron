@@ -10,10 +10,10 @@ them should they exist.
 This will be upstreamed.
 
 diff --git a/printing/printing_context_mac.h b/printing/printing_context_mac.h
-index 53b106a1522a04d596d6ec833b00aa2170c760d9..3b5ca717d48cdade667fda8ce113f3f64bdaa063 100644
+index 5b469b3b6bd11d8e0baa08e9be257990ac9bc438..c1410e5d8112f0319de40e4fbf41dbaea4b9733c 100644
 --- a/printing/printing_context_mac.h
 +++ b/printing/printing_context_mac.h
-@@ -83,6 +83,10 @@ class COMPONENT_EXPORT(PRINTING) PrintingContextMac : public PrintingContext {
+@@ -84,6 +84,10 @@ class COMPONENT_EXPORT(PRINTING) PrintingContextMac : public PrintingContext {
    // Returns true if the orientation was set.
    bool SetOrientationIsLandscape(bool landscape);
  
@@ -25,10 +25,10 @@ index 53b106a1522a04d596d6ec833b00aa2170c760d9..3b5ca717d48cdade667fda8ce113f3f6
    // Returns true if duplex mode is set.
    bool SetDuplexModeInPrintSettings(mojom::DuplexMode mode);
 diff --git a/printing/printing_context_mac.mm b/printing/printing_context_mac.mm
-index 844c3befb928c1e7509f3af4be22ef7b9a131af8..dce986be7a16b6ecbcddbd33cedae69fb935d09e 100644
+index 0b3e9d694c47534996bc7de375a7a0b3fda47e15..67b19d37d582556b117b7f5f9caff29c6e30077f 100644
 --- a/printing/printing_context_mac.mm
 +++ b/printing/printing_context_mac.mm
-@@ -200,7 +200,8 @@ PMPaper MatchPaper(CFArrayRef paper_list,
+@@ -486,7 +486,8 @@ void ApplySystemPrintDialogData(
          !SetCollateInPrintSettings(settings_->collate()) ||
          !SetDuplexModeInPrintSettings(settings_->duplex_mode()) ||
          !SetOutputColor(static_cast<int>(settings_->color())) ||
@@ -38,7 +38,7 @@ index 844c3befb928c1e7509f3af4be22ef7b9a131af8..dce986be7a16b6ecbcddbd33cedae69f
        return OnError();
      }
    }
-@@ -353,6 +354,22 @@ PMPaper MatchPaper(CFArrayRef paper_list,
+@@ -639,6 +640,22 @@ void ApplySystemPrintDialogData(
    return PMSetCopies(print_settings, copies, false) == noErr;
  }
  
@@ -47,8 +47,8 @@ index 844c3befb928c1e7509f3af4be22ef7b9a131af8..dce986be7a16b6ecbcddbd33cedae69f
 +  if (ranges.empty())
 +    return true;
 +
-+  auto* print_settings =
-+      static_cast<PMPrintSettings>([print_info_.get() PMPrintSettings]);
++  PMPrintSettings print_settings =
++      static_cast<PMPrintSettings>([print_info_ PMPrintSettings]);
 +
 +  // macOS does not allow multiple ranges, so pluck the first.
 +  auto range = ranges.front();
@@ -60,12 +60,12 @@ index 844c3befb928c1e7509f3af4be22ef7b9a131af8..dce986be7a16b6ecbcddbd33cedae69f
 +
  bool PrintingContextMac::SetCollateInPrintSettings(bool collate) {
    PMPrintSettings print_settings =
-       static_cast<PMPrintSettings>([print_info_.get() PMPrintSettings]);
+       static_cast<PMPrintSettings>([print_info_ PMPrintSettings]);
 diff --git a/printing/printing_context_system_dialog_win.cc b/printing/printing_context_system_dialog_win.cc
-index 07847521e7217c78480205812a73cc89503c00d2..586e866ca7ec0eb0b573d23e3bd95792c22bff20 100644
+index b935f996b137d91d82f89414122355d5db65aeb9..6d7d84cd2ea6d9197c4ff1149131658e49f2ff23 100644
 --- a/printing/printing_context_system_dialog_win.cc
 +++ b/printing/printing_context_system_dialog_win.cc
-@@ -75,14 +75,28 @@ void PrintingContextSystemDialogWin::AskUserForSettings(
+@@ -72,14 +72,28 @@ void PrintingContextSystemDialogWin::AskUserForSettings(
    PRINTPAGERANGE ranges[32];
    dialog_options.nStartPage = START_PAGE_GENERAL;
    if (max_pages) {
@@ -100,10 +100,10 @@ index 07847521e7217c78480205812a73cc89503c00d2..586e866ca7ec0eb0b573d23e3bd95792
    } else {
      // No need to bother, we don't know how many pages are available.
 diff --git a/ui/gtk/printing/print_dialog_gtk.cc b/ui/gtk/printing/print_dialog_gtk.cc
-index afa936ce95602d5e66189303a73d7824611187b3..89371a4f0d3216f21761adc51bdd2accec0c74a1 100644
+index 0a190a577e505729947d31c34e4d36118944d977..f0feaa4a33e5b3ec14329c7310c5c30abb281fc8 100644
 --- a/ui/gtk/printing/print_dialog_gtk.cc
 +++ b/ui/gtk/printing/print_dialog_gtk.cc
-@@ -247,6 +247,24 @@ void PrintDialogGtk::UpdateSettings(
+@@ -242,6 +242,24 @@ void PrintDialogGtk::UpdateSettings(
  
    gtk_print_settings_set_n_copies(gtk_settings_, settings->copies());
    gtk_print_settings_set_collate(gtk_settings_, settings->collate());

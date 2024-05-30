@@ -1,10 +1,10 @@
-import { EventEmitter, once } from 'events';
+import { EventEmitter, once } from 'node:events';
 import { expect } from 'chai';
 import { BrowserWindow, ipcMain, IpcMainInvokeEvent, MessageChannelMain, WebContents } from 'electron/main';
 import { closeAllWindows } from './lib/window-helpers';
 import { defer, listen } from './lib/spec-helpers';
-import * as path from 'path';
-import * as http from 'http';
+import * as path from 'node:path';
+import * as http from 'node:http';
 
 const v8Util = process._linkedBinding('electron_common_v8_util');
 const fixturesPath = path.resolve(__dirname, 'fixtures');
@@ -113,8 +113,7 @@ describe('ipc module', () => {
     });
 
     it('throws an error in the renderer if the reply callback is dropped', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ipcMain.handleOnce('test', () => new Promise(resolve => {
+      ipcMain.handleOnce('test', () => new Promise(() => {
         setTimeout(() => v8Util.requestGarbageCollectionForTesting());
         /* never resolve */
       }));
@@ -240,7 +239,7 @@ describe('ipc module', () => {
       const p = once(ipcMain, 'port');
       await w.webContents.executeJavaScript(`(${function () {
         const channel = new MessageChannel();
-        (channel.port2 as any).onmessage = (ev: any) => {
+        channel.port2.onmessage = (ev: any) => {
           channel.port2.postMessage(ev.data * 2);
         };
         require('electron').ipcRenderer.postMessage('port', '', [channel.port1]);
@@ -281,7 +280,7 @@ describe('ipc module', () => {
       w2.loadURL('about:blank');
       w1.webContents.executeJavaScript(`(${function () {
         const channel = new MessageChannel();
-        (channel.port2 as any).onmessage = (ev: any) => {
+        channel.port2.onmessage = (ev: any) => {
           require('electron').ipcRenderer.send('message received', ev.data);
         };
         require('electron').ipcRenderer.postMessage('port', '', [channel.port1]);
@@ -307,7 +306,7 @@ describe('ipc module', () => {
             ipcRenderer.on('port', e => {
               const [port] = e.ports;
               port.start();
-              (port as any).onclose = () => {
+              port.onclose = () => {
                 ipcRenderer.send('closed');
               };
             });
@@ -323,10 +322,11 @@ describe('ipc module', () => {
           w.loadURL('about:blank');
           await w.webContents.executeJavaScript(`(${async function () {
             const { port2 } = new MessageChannel();
-            await new Promise(resolve => {
+            await new Promise<void>(resolve => {
               port2.start();
-              (port2 as any).onclose = resolve;
-              process._linkedBinding('electron_common_v8_util').requestGarbageCollectionForTesting();
+              port2.onclose = resolve;
+              // @ts-ignore --expose-gc is enabled.
+              gc({ type: 'major', execution: 'async' });
             });
           }})()`);
         });
@@ -337,13 +337,66 @@ describe('ipc module', () => {
           ipcMain.once('do-a-gc', () => v8Util.requestGarbageCollectionForTesting());
           await w.webContents.executeJavaScript(`(${async function () {
             const { port1, port2 } = new MessageChannel();
-            await new Promise(resolve => {
+            await new Promise<void>(resolve => {
               port2.start();
-              (port2 as any).onclose = resolve;
+              port2.onclose = resolve;
               require('electron').ipcRenderer.postMessage('nobody-listening', null, [port1]);
               require('electron').ipcRenderer.send('do-a-gc');
             });
           }})()`);
+        });
+      });
+
+      describe('when context destroyed', () => {
+        it('does not crash', async () => {
+          let count = 0;
+          const server = http.createServer((req, res) => {
+            switch (req.url) {
+              case '/index.html':
+                res.setHeader('content-type', 'text/html');
+                res.statusCode = 200;
+                count = count + 1;
+                res.end(`
+                  <title>Hello${count}</title>
+                  <script>
+                  var sharedWorker = new SharedWorker('worker.js');
+
+                  sharedWorker.port.addEventListener('close', function(event) {
+                     console.log('close event', event.data);
+                  });
+                  </script>`);
+
+                break;
+              case '/worker.js':
+                res.setHeader('content-type', 'application/javascript; charset=UTF-8');
+                res.statusCode = 200;
+                res.end(`
+                  self.addEventListener('connect', function(event) {
+                    var port = event.ports[0];
+
+                    port.addEventListener('message', function(event) {
+                      console.log('Message from main:', event.data);
+                      port.postMessage('Hello from SharedWorker!');
+                    });
+
+                  });`);
+                break;
+              default:
+                throw new Error(`unsupported endpoint: ${req.url}`);
+            }
+          });
+          const { port } = await listen(server);
+          defer(() => {
+            server.close();
+          });
+          const w = new BrowserWindow({ show: false });
+          await w.loadURL(`http://localhost:${port}/index.html`);
+          expect(w.webContents.getTitle()).to.equal('Hello1');
+          // Before the fix, it would crash if reloaded, but now it doesn't
+          await w.loadURL(`http://localhost:${port}/index.html`);
+          expect(w.webContents.getTitle()).to.equal('Hello2');
+          // const crashEvent = emittedOnce(w.webContents, 'render-process-gone');
+          // await crashEvent;
         });
       });
     });
@@ -353,6 +406,31 @@ describe('ipc module', () => {
         const { port1, port2 } = new MessageChannelMain();
         expect(port1).not.to.be.null();
         expect(port2).not.to.be.null();
+      });
+
+      it('throws an error when an invalid parameter is sent to postMessage', () => {
+        const { port1 } = new MessageChannelMain();
+
+        expect(() => {
+          const buffer = new ArrayBuffer(10) as any;
+          port1.postMessage(null, [buffer]);
+        }).to.throw(/Port at index 0 is not a valid port/);
+
+        expect(() => {
+          port1.postMessage(null, ['1' as any]);
+        }).to.throw(/Port at index 0 is not a valid port/);
+
+        expect(() => {
+          port1.postMessage(null, [new Date() as any]);
+        }).to.throw(/Port at index 0 is not a valid port/);
+      });
+
+      it('throws when postMessage transferables contains the source port', () => {
+        const { port1 } = new MessageChannelMain();
+
+        expect(() => {
+          port1.postMessage(null, [port1]);
+        }).to.throw(/Port at index 0 contains the source port./);
       });
 
       it('can send messages within the process', async () => {
@@ -423,7 +501,7 @@ describe('ipc module', () => {
         const { port1 } = new MessageChannelMain();
         expect(() => {
           port1.postMessage(null, [null] as any);
-        }).to.throw(/conversion failure/);
+        }).to.throw(/Port at index 0 is not a valid port/);
       });
 
       it('throws when passing duplicate ports', () => {

@@ -4,8 +4,6 @@
 
 #include "shell/browser/badging/badge_manager_factory.h"
 
-#include <memory>
-
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
@@ -23,7 +21,8 @@ BadgeManager* BadgeManagerFactory::GetForBrowserContext(
 
 // static
 BadgeManagerFactory* BadgeManagerFactory::GetInstance() {
-  return base::Singleton<BadgeManagerFactory>::get();
+  static base::NoDestructor<BadgeManagerFactory> instance;
+  return instance.get();
 }
 
 BadgeManagerFactory::BadgeManagerFactory()

@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -59,7 +60,7 @@ class NodeStreamLoader : public network::mojom::URLLoader {
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override {}
+      const std::optional<GURL>& new_url) override {}
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {}
   void PauseReadingBodyFromNet() override {}
@@ -68,7 +69,7 @@ class NodeStreamLoader : public network::mojom::URLLoader {
   mojo::Receiver<network::mojom::URLLoader> url_loader_;
   mojo::Remote<network::mojom::URLLoaderClient> client_;
 
-  v8::Isolate* isolate_;
+  raw_ptr<v8::Isolate> isolate_;
   v8::Global<v8::Object> emitter_;
   v8::Global<v8::Value> buffer_;
 
@@ -80,6 +81,8 @@ class NodeStreamLoader : public network::mojom::URLLoader {
 
   // Whether we are in the middle of a stream.read().
   bool is_reading_ = false;
+
+  size_t bytes_written_ = 0;
 
   // When NotifyComplete is called while writing, we will save the result and
   // quit with it after the write is done.

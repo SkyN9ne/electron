@@ -4,9 +4,10 @@
 
 #include "shell/browser/api/electron_api_service_worker_context.h"
 
-#include <string>
+#include <string_view>
 #include <utility>
 
+#include "base/strings/string_number_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "content/public/browser/console_message.h"
 #include "content/public/browser/storage_partition.h"
@@ -25,33 +26,36 @@ namespace electron::api {
 
 namespace {
 
-std::string MessageSourceToString(
+constexpr std::string_view MessageSourceToString(
     const blink::mojom::ConsoleMessageSource source) {
-  if (source == blink::mojom::ConsoleMessageSource::kXml)
-    return "xml";
-  if (source == blink::mojom::ConsoleMessageSource::kJavaScript)
-    return "javascript";
-  if (source == blink::mojom::ConsoleMessageSource::kNetwork)
-    return "network";
-  if (source == blink::mojom::ConsoleMessageSource::kConsoleApi)
-    return "console-api";
-  if (source == blink::mojom::ConsoleMessageSource::kStorage)
-    return "storage";
-  if (source == blink::mojom::ConsoleMessageSource::kRendering)
-    return "rendering";
-  if (source == blink::mojom::ConsoleMessageSource::kSecurity)
-    return "security";
-  if (source == blink::mojom::ConsoleMessageSource::kDeprecation)
-    return "deprecation";
-  if (source == blink::mojom::ConsoleMessageSource::kWorker)
-    return "worker";
-  if (source == blink::mojom::ConsoleMessageSource::kViolation)
-    return "violation";
-  if (source == blink::mojom::ConsoleMessageSource::kIntervention)
-    return "intervention";
-  if (source == blink::mojom::ConsoleMessageSource::kRecommendation)
-    return "recommendation";
-  return "other";
+  switch (source) {
+    case blink::mojom::ConsoleMessageSource::kXml:
+      return "xml";
+    case blink::mojom::ConsoleMessageSource::kJavaScript:
+      return "javascript";
+    case blink::mojom::ConsoleMessageSource::kNetwork:
+      return "network";
+    case blink::mojom::ConsoleMessageSource::kConsoleApi:
+      return "console-api";
+    case blink::mojom::ConsoleMessageSource::kStorage:
+      return "storage";
+    case blink::mojom::ConsoleMessageSource::kRendering:
+      return "rendering";
+    case blink::mojom::ConsoleMessageSource::kSecurity:
+      return "security";
+    case blink::mojom::ConsoleMessageSource::kDeprecation:
+      return "deprecation";
+    case blink::mojom::ConsoleMessageSource::kWorker:
+      return "worker";
+    case blink::mojom::ConsoleMessageSource::kViolation:
+      return "violation";
+    case blink::mojom::ConsoleMessageSource::kIntervention:
+      return "intervention";
+    case blink::mojom::ConsoleMessageSource::kRecommendation:
+      return "recommendation";
+    default:
+      return "other";
+  }
 }
 
 v8::Local<v8::Value> ServiceWorkerRunningInfoToDict(
@@ -115,10 +119,10 @@ v8::Local<v8::Value> ServiceWorkerContext::GetAllRunningWorkerInfo(
   gin::DataObjectBuilder builder(isolate);
   const base::flat_map<int64_t, content::ServiceWorkerRunningInfo>& info_map =
       service_worker_context_->GetRunningServiceWorkerInfos();
-  for (auto iter = info_map.begin(); iter != info_map.end(); ++iter) {
+  for (const auto& iter : info_map) {
     builder.Set(
-        std::to_string(iter->first),
-        ServiceWorkerRunningInfoToDict(isolate, std::move(iter->second)));
+        base::NumberToString(iter.first),
+        ServiceWorkerRunningInfoToDict(isolate, std::move(iter.second)));
   }
   return builder.Build();
 }

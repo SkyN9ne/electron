@@ -5,6 +5,7 @@
 #ifndef ELECTRON_SHELL_BROWSER_API_ELECTRON_API_SERVICE_WORKER_CONTEXT_H_
 #define ELECTRON_SHELL_BROWSER_API_ELECTRON_API_SERVICE_WORKER_CONTEXT_H_
 
+#include "base/memory/raw_ptr.h"
 #include "content/public/browser/service_worker_context.h"
 #include "content/public/browser/service_worker_context_observer.h"
 #include "gin/handle.h"
@@ -20,7 +21,7 @@ namespace api {
 class ServiceWorkerContext
     : public gin::Wrappable<ServiceWorkerContext>,
       public gin_helper::EventEmitterMixin<ServiceWorkerContext>,
-      public content::ServiceWorkerContextObserver {
+      private content::ServiceWorkerContextObserver {
  public:
   static gin::Handle<ServiceWorkerContext> Create(
       v8::Isolate* isolate,
@@ -53,7 +54,7 @@ class ServiceWorkerContext
   ~ServiceWorkerContext() override;
 
  private:
-  content::ServiceWorkerContext* service_worker_context_;
+  raw_ptr<content::ServiceWorkerContext> service_worker_context_;
 
   base::WeakPtrFactory<ServiceWorkerContext> weak_ptr_factory_{this};
 };

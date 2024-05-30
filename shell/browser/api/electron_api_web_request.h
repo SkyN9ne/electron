@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 
+#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "extensions/common/url_pattern.h"
 #include "gin/arguments.h"
@@ -23,8 +24,6 @@ namespace electron::api {
 
 class WebRequest : public gin::Wrappable<WebRequest>, public WebRequestAPI {
  public:
-  static gin::WrapperInfo kWrapperInfo;
-
   // Return the WebRequest object attached to |browser_context|, create if there
   // is no one.
   // Note that the lifetime of WebRequest object is managed by Session, instead
@@ -43,6 +42,7 @@ class WebRequest : public gin::Wrappable<WebRequest>, public WebRequestAPI {
                                       content::BrowserContext* browser_context);
 
   // gin::Wrappable:
+  static gin::WrapperInfo kWrapperInfo;
   gin::ObjectTemplateBuilder GetObjectTemplateBuilder(
       v8::Isolate* isolate) override;
   const char* GetTypeName() override;
@@ -167,7 +167,7 @@ class WebRequest : public gin::Wrappable<WebRequest>, public WebRequestAPI {
   std::map<uint64_t, net::CompletionOnceCallback> callbacks_;
 
   // Weak-ref, it manages us.
-  content::BrowserContext* browser_context_;
+  raw_ptr<content::BrowserContext> browser_context_;
 };
 
 }  // namespace electron::api

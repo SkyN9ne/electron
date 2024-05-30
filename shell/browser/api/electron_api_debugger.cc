@@ -4,7 +4,6 @@
 
 #include "shell/browser/api/electron_api_debugger.h"
 
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -45,12 +44,12 @@ void Debugger::DispatchProtocolMessage(DevToolsAgentHost* agent_host,
 
   base::StringPiece message_str(reinterpret_cast<const char*>(message.data()),
                                 message.size());
-  absl::optional<base::Value> parsed_message = base::JSONReader::Read(
+  std::optional<base::Value> parsed_message = base::JSONReader::Read(
       message_str, base::JSON_REPLACE_INVALID_CHARACTERS);
   if (!parsed_message || !parsed_message->is_dict())
     return;
   base::Value::Dict& dict = parsed_message->GetDict();
-  absl::optional<int> id = dict.FindInt("id");
+  std::optional<int> id = dict.FindInt("id");
   if (!id) {
     std::string* method = dict.FindString("method");
     if (!method)
@@ -153,15 +152,14 @@ v8::Local<v8::Promise> Debugger::SendCommand(gin::Arguments* args) {
   request.Set("id", request_id);
   request.Set("method", method);
   if (!command_params.empty()) {
-    request.Set("params", base::Value(std::move(command_params)));
+    request.Set("params", std::move(command_params));
   }
 
   if (!session_id.empty()) {
     request.Set("sessionId", session_id);
   }
 
-  std::string json_args;
-  base::JSONWriter::Write(base::Value(std::move(request)), &json_args);
+  const auto json_args = base::WriteJson(request).value_or("");
   agent_host_->DispatchProtocolMessage(
       this, base::as_bytes(base::make_span(json_args)));
 

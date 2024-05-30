@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "base/containers/contains.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "gin/arguments.h"
@@ -25,6 +26,25 @@
 #include "third_party/blink/public/mojom/messaging/transferable_message.mojom.h"
 
 namespace electron {
+
+namespace {
+
+bool IsValidWrappable(const v8::Local<v8::Value>& obj) {
+  v8::Local<v8::Object> port = v8::Local<v8::Object>::Cast(obj);
+
+  if (!port->IsObject())
+    return false;
+
+  if (port->InternalFieldCount() != gin::kNumberOfInternalFields)
+    return false;
+
+  const auto* info = static_cast<gin::WrapperInfo*>(
+      port->GetAlignedPointerFromInternalField(gin::kWrapperInfoIndex));
+
+  return info && info->embedder == gin::kEmbedderNativeGin;
+}
+
+}  // namespace
 
 gin::WrapperInfo MessagePort::kWrapperInfo = {gin::kEmbedderNativeGin};
 
@@ -48,10 +68,11 @@ void MessagePort::PostMessage(gin::Arguments* args) {
   DCHECK(!IsNeutered());
 
   blink::TransferableMessage transferable_message;
+  gin_helper::ErrorThrower thrower(args->isolate());
 
   v8::Local<v8::Value> message_value;
   if (!args->GetNext(&message_value)) {
-    args->ThrowTypeError("Expected at least one argument to postMessage");
+    thrower.ThrowTypeError("Expected at least one argument to postMessage");
     return;
   }
 
@@ -61,8 +82,23 @@ void MessagePort::PostMessage(gin::Arguments* args) {
   v8::Local<v8::Value> transferables;
   std::vector<gin::Handle<MessagePort>> wrapped_ports;
   if (args->GetNext(&transferables)) {
+    std::vector<v8::Local<v8::Value>> wrapped_port_values;
+    if (!gin::ConvertFromV8(args->isolate(), transferables,
+                            &wrapped_port_values)) {
+      thrower.ThrowTypeError("transferables must be an array of MessagePorts");
+      return;
+    }
+
+    for (unsigned i = 0; i < wrapped_port_values.size(); ++i) {
+      if (!IsValidWrappable(wrapped_port_values[i])) {
+        thrower.ThrowTypeError("Port at index " + base::NumberToString(i) +
+                               " is not a valid port");
+        return;
+      }
+    }
+
     if (!gin::ConvertFromV8(args->isolate(), transferables, &wrapped_ports)) {
-      args->ThrowError();
+      thrower.ThrowTypeError("Passed an invalid MessagePort");
       return;
     }
   }
@@ -70,9 +106,8 @@ void MessagePort::PostMessage(gin::Arguments* args) {
   // Make sure we aren't connected to any of the passed-in ports.
   for (unsigned i = 0; i < wrapped_ports.size(); ++i) {
     if (wrapped_ports[i].get() == this) {
-      gin_helper::ErrorThrower(args->isolate())
-          .ThrowError("Port at index " + base::NumberToString(i) +
-                      " contains the source port.");
+      thrower.ThrowError("Port at index " + base::NumberToString(i) +
+                         " contains the source port.");
       return;
     }
   }
@@ -187,7 +222,7 @@ std::vector<blink::MessagePortChannel> MessagePort::DisentanglePorts(
   // or cloned ports, throw an error (per section 8.3.3 of the HTML5 spec).
   for (unsigned i = 0; i < ports.size(); ++i) {
     auto* port = ports[i].get();
-    if (!port || port->IsNeutered() || visited.find(port) != visited.end()) {
+    if (!port || port->IsNeutered() || base::Contains(visited, port)) {
       std::string type;
       if (!port)
         type = "null";
@@ -206,8 +241,8 @@ std::vector<blink::MessagePortChannel> MessagePort::DisentanglePorts(
   // Passed-in ports passed validity checks, so we can disentangle them.
   std::vector<blink::MessagePortChannel> channels;
   channels.reserve(ports.size());
-  for (unsigned i = 0; i < ports.size(); ++i)
-    channels.push_back(ports[i]->Disentangle());
+  for (auto port : ports)
+    channels.push_back(port->Disentangle());
   return channels;
 }
 

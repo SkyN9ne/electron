@@ -5,6 +5,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -55,6 +56,11 @@
 #include "ui/base/ime/ime_text_span.h"
 #include "url/url_util.h"
 
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+#include "components/spellcheck/renderer/spellcheck.h"
+#include "components/spellcheck/renderer/spellcheck_provider.h"
+#endif
+
 namespace gin {
 
 template <>
@@ -104,10 +110,15 @@ bool SpellCheckWord(content::RenderFrame* render_frame,
 
   RendererClientBase* client = RendererClientBase::Get();
 
+  mojo::Remote<spellcheck::mojom::SpellCheckHost> spellcheck_host;
+  render_frame->GetBrowserInterfaceBroker()->GetInterface(
+      spellcheck_host.BindNewPipeAndPassReceiver());
+  if (!spellcheck_host.is_bound())
+    return false;
+
   std::u16string w = base::UTF8ToUTF16(word);
-  int id = render_frame->GetRoutingID();
   return client->GetSpellCheck()->SpellCheckWord(
-      w.c_str(), 0, word.size(), id, &start, &length, optional_suggestions);
+      w, *spellcheck_host.get(), &start, &length, optional_suggestions);
 }
 
 #endif
@@ -140,9 +151,12 @@ class ScriptExecutionCallback {
     {
       v8::TryCatch try_catch(isolate);
       context_bridge::ObjectCache object_cache;
-      maybe_result = PassValueToOtherContext(
-          result->GetCreationContextChecked(), promise_.GetContext(), result,
-          &object_cache, false, 0);
+      v8::Local<v8::Context> source_context =
+          result->GetCreationContextChecked();
+      maybe_result =
+          PassValueToOtherContext(source_context, promise_.GetContext(), result,
+                                  source_context->Global(), &object_cache,
+                                  false, 0, BridgeErrorTarget::kSource);
       if (maybe_result.IsEmpty() || try_catch.HasCaught()) {
         success = false;
       }
@@ -258,7 +272,7 @@ class FrameSetSpellChecker : public content::RenderFrameVisitor {
   content::RenderFrame* main_frame_;
 };
 
-class SpellCheckerHolder final : public content::RenderFrameObserver {
+class SpellCheckerHolder final : private content::RenderFrameObserver {
  public:
   // Find existing holder for the |render_frame|.
   static SpellCheckerHolder* FromRenderFrame(
@@ -316,7 +330,7 @@ class SpellCheckerHolder final : public content::RenderFrameObserver {
 }  // namespace
 
 class WebFrameRenderer : public gin::Wrappable<WebFrameRenderer>,
-                         public content::RenderFrameObserver {
+                         private content::RenderFrameObserver {
  public:
   static gin::WrapperInfo kWrapperInfo;
 
@@ -383,7 +397,7 @@ class WebFrameRenderer : public gin::Wrappable<WebFrameRenderer>,
 
  private:
   bool MaybeGetRenderFrame(v8::Isolate* isolate,
-                           const std::string& method_name,
+                           const std::string_view method_name,
                            content::RenderFrame** render_frame_ptr) {
     std::string error_msg;
     if (!MaybeGetRenderFrame(&error_msg, method_name, render_frame_ptr)) {
@@ -394,13 +408,12 @@ class WebFrameRenderer : public gin::Wrappable<WebFrameRenderer>,
   }
 
   bool MaybeGetRenderFrame(std::string* error_msg,
-                           const std::string& method_name,
+                           const std::string_view method_name,
                            content::RenderFrame** render_frame_ptr) {
     auto* frame = render_frame();
     if (!frame) {
-      *error_msg = "Render frame was torn down before webFrame." + method_name +
-                   " could be "
-                   "executed";
+      *error_msg = base::ToString("Render frame was torn down before webFrame.",
+                                  method_name, " could be executed");
       return false;
     }
     *render_frame_ptr = frame;
@@ -643,7 +656,7 @@ class WebFrameRenderer : public gin::Wrappable<WebFrameRenderer>,
                                              std::move(completion_callback));
 
     render_frame->GetWebFrame()->RequestExecuteScript(
-        blink::DOMWrapperWorld::kMainWorldId, base::make_span(&source, 1),
+        blink::DOMWrapperWorld::kMainWorldId, base::make_span(&source, 1u),
         has_user_gesture ? blink::mojom::UserActivationOption::kActivate
                          : blink::mojom::UserActivationOption::kDoNotActivate,
         blink::mojom::EvaluationTiming::kSynchronous,
@@ -793,7 +806,6 @@ class WebFrameRenderer : public gin::Wrappable<WebFrameRenderer>,
 #endif
 
   void ClearCache(v8::Isolate* isolate) {
-    isolate->IdleNotificationDeadline(0.5);
     blink::WebCache::Clear();
     base::MemoryPressureListener::NotifyMemoryPressure(
         base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL);

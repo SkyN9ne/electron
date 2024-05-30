@@ -7,11 +7,14 @@ export const browserModuleList: ElectronInternal.ModuleEntry[] = [
   { name: 'BaseWindow', loader: () => require('./base-window') },
   { name: 'BrowserView', loader: () => require('./browser-view') },
   { name: 'BrowserWindow', loader: () => require('./browser-window') },
+  { name: 'clipboard', loader: () => require('./clipboard') },
   { name: 'contentTracing', loader: () => require('./content-tracing') },
   { name: 'crashReporter', loader: () => require('./crash-reporter') },
+  { name: 'desktopCapturer', loader: () => require('./desktop-capturer') },
   { name: 'dialog', loader: () => require('./dialog') },
   { name: 'globalShortcut', loader: () => require('./global-shortcut') },
   { name: 'ipcMain', loader: () => require('./ipc-main') },
+  { name: 'ImageView', loader: () => require('./views/image-view') },
   { name: 'inAppPurchase', loader: () => require('./in-app-purchase') },
   { name: 'Menu', loader: () => require('./menu') },
   { name: 'MenuItem', loader: () => require('./menu-item') },
@@ -37,15 +40,3 @@ export const browserModuleList: ElectronInternal.ModuleEntry[] = [
   { name: 'WebContentsView', loader: () => require('./web-contents-view') },
   { name: 'webFrameMain', loader: () => require('./web-frame-main') }
 ];
-
-if (BUILDFLAG(ENABLE_DESKTOP_CAPTURER)) {
-  browserModuleList.push(
-    { name: 'desktopCapturer', loader: () => require('./desktop-capturer') }
-  );
-}
-
-if (BUILDFLAG(ENABLE_VIEWS_API)) {
-  browserModuleList.push(
-    { name: 'ImageView', loader: () => require('./views/image-view') }
-  );
-}

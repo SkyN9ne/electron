@@ -7,7 +7,7 @@ Process: [Main](../glossary.md#main-process), [Renderer](../glossary.md#renderer
 On Linux, there is also a `selection` clipboard. To manipulate it
 you need to pass `selection` to each method:
 
-```javascript
+```js
 const { clipboard } = require('electron')
 
 clipboard.writeText('Example string', 'selection')
@@ -148,10 +148,7 @@ clipboard.
 ```js
 const { clipboard } = require('electron')
 
-clipboard.writeBookmark({
-  text: 'https://electronjs.org',
-  bookmark: 'Electron Homepage'
-})
+clipboard.writeBookmark('Electron Homepage', 'https://electronjs.org')
 ```
 
 ### `clipboard.readFindText()` _macOS_

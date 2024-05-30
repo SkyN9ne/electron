@@ -6,7 +6,7 @@ Process: [Renderer](../glossary.md#renderer-process)
 
 An example of exposing an API to a renderer from an isolated preload script is given below:
 
-```javascript
+```js
 // Preload (Isolated World)
 const { contextBridge, ipcRenderer } = require('electron')
 
@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld(
 )
 ```
 
-```javascript
+```js @ts-nocheck
 // Renderer (Main World)
 
 window.electron.doThing()
@@ -64,7 +64,7 @@ the API become immutable and updates on either side of the bridge do not result 
 
 An example of a complex API is shown below:
 
-```javascript
+```js
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld(
@@ -92,7 +92,7 @@ contextBridge.exposeInMainWorld(
 
 An example of `exposeInIsolatedWorld` is shown below:
 
-```javascript
+```js
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInIsolatedWorld(
@@ -104,7 +104,7 @@ contextBridge.exposeInIsolatedWorld(
 )
 ```
 
-```javascript
+```js @ts-nocheck
 // Renderer (In isolated world id1004)
 
 window.electron.doThing()
@@ -129,7 +129,7 @@ has been included below for completeness:
 | `Object` | Complex | ✅ | ✅ | Keys must be supported using only "Simple" types in this table.  Values must be supported in this table.  Prototype modifications are dropped.  Sending custom classes will copy values but not the prototype. |
 | `Array` | Complex | ✅ | ✅ | Same limitations as the `Object` type |
 | `Error` | Complex | ✅ | ✅ | Errors that are thrown are also copied, this can result in the message and stack trace of the error changing slightly due to being thrown in a different context, and any custom properties on the Error object [will be lost](https://github.com/electron/electron/issues/25596) |
-| `Promise` | Complex | ✅ | ✅ | N/A
+| `Promise` | Complex | ✅ | ✅ | N/A |
 | `Function` | Complex | ✅ | ✅ | Prototype modifications are dropped.  Sending classes or constructors will not work. |
 | [Cloneable Types](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm) | Simple | ✅ | ✅ | See the linked document on cloneable types |
 | `Element` | Complex | ✅ | ✅ | Prototype modifications are dropped.  Sending custom elements will not work. |
@@ -145,9 +145,9 @@ The table of supported types described above also applies to Node APIs that you 
 Please note that many Node APIs grant access to local system resources.
 Be very cautious about which globals and APIs you expose to untrusted remote content.
 
-```javascript
+```js
 const { contextBridge } = require('electron')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 contextBridge.exposeInMainWorld('nodeCrypto', {
   sha256sum (data) {
     const hash = crypto.createHash('sha256')

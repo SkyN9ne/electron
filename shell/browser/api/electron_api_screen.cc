@@ -5,6 +5,7 @@
 #include "shell/browser/api/electron_api_screen.h"
 
 #include <string>
+#include <string_view>
 
 #include "base/functional/bind.h"
 #include "gin/dictionary.h"
@@ -49,13 +50,13 @@ std::vector<std::string> MetricsToArray(uint32_t metrics) {
 }
 
 void DelayEmit(Screen* screen,
-               base::StringPiece name,
+               const std::string_view name,
                const display::Display& display) {
   screen->Emit(name, display);
 }
 
 void DelayEmitWithMetrics(Screen* screen,
-                          base::StringPiece name,
+                          const std::string_view name,
                           const display::Display& display,
                           const std::vector<std::string>& metrics) {
   screen->Emit(name, display, metrics);
@@ -85,22 +86,6 @@ gfx::Point Screen::GetCursorScreenPoint(v8::Isolate* isolate) {
   }
 #endif
   return screen_->GetCursorScreenPoint();
-}
-
-display::Display Screen::GetPrimaryDisplay() {
-  return screen_->GetPrimaryDisplay();
-}
-
-std::vector<display::Display> Screen::GetAllDisplays() {
-  return screen_->GetAllDisplays();
-}
-
-display::Display Screen::GetDisplayNearestPoint(const gfx::Point& point) {
-  return screen_->GetDisplayNearestPoint(point);
-}
-
-display::Display Screen::GetDisplayMatching(const gfx::Rect& match_rect) {
-  return screen_->GetDisplayMatching(match_rect);
 }
 
 #if BUILDFLAG(IS_WIN)

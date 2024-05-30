@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from __future__ import print_function
+
 import os
 import subprocess
 import sys
@@ -10,7 +10,13 @@ EXTENSIONS_TO_SKIP = [
   '.mojom.js',
   '.mojom-lite.js',
   '.info',
-  '.m.js'
+  '.m.js',
+
+  # These are only needed for Chromium tests we don't run. Listed in
+  # 'extensions' because the mksnapshot zip has these under a subdirectory, and
+  # the PATHS_TO_SKIP is checked with |startswith|.
+  'dbgcore.dll',
+  'dbghelp.dll',
 ]
 
 PATHS_TO_SKIP = [
@@ -34,7 +40,7 @@ PATHS_TO_SKIP = [
   # Skip because these are outputs that we don't need.
   'resources/inspector',
   'gen/third_party/devtools-frontend/src',
-  'gen/ui/webui'
+  'gen/ui/webui',
 ]
 
 def skip_path(dep, dist_zip, target_cpu):

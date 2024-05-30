@@ -7,6 +7,7 @@
 #include <fcntl.h>
 
 #include <stdio.h>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,11 +16,13 @@
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/memory/raw_ptr.h"
 #include "base/nix/xdg_util.h"
 #include "base/no_destructor.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/kill.h"
 #include "base/process/launch.h"
+#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "components/dbus/thread_linux/dbus_thread_linux.h"
@@ -28,7 +31,6 @@
 #include "dbus/message.h"
 #include "dbus/object_proxy.h"
 #include "shell/common/platform_util_internal.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gtk/gtk_util.h"  // nogncheck
 #include "url/gurl.h"
 
@@ -61,7 +63,7 @@ class ShowItemHelper {
     return *instance;
   }
 
-  ShowItemHelper() {}
+  ShowItemHelper() = default;
 
   ShowItemHelper(const ShowItemHelper&) = delete;
   ShowItemHelper& operator=(const ShowItemHelper&) = delete;
@@ -215,8 +217,9 @@ class ShowItemHelper {
     dbus::MessageWriter writer(&show_items_call);
 
     writer.AppendArrayOfStrings(
-        {"file://" + full_path.value()});  // List of file(s) to highlight.
-    writer.AppendString({});               // startup-id
+        {"file://" + base::EscapePath(
+                         full_path.value())});  // List of file(s) to highlight.
+    writer.AppendString({});                    // startup-id
 
     ShowItemUsingBusCall(&show_items_call, full_path);
   }
@@ -241,10 +244,10 @@ class ShowItemHelper {
   }
 
   scoped_refptr<dbus::Bus> bus_;
-  dbus::ObjectProxy* dbus_proxy_ = nullptr;
-  dbus::ObjectProxy* object_proxy_ = nullptr;
+  raw_ptr<dbus::ObjectProxy> dbus_proxy_ = nullptr;
+  raw_ptr<dbus::ObjectProxy> object_proxy_ = nullptr;
 
-  absl::optional<bool> prefer_filemanager_interface_;
+  std::optional<bool> prefer_filemanager_interface_;
 };
 
 // Descriptions pulled from https://linux.die.net/man/1/xdg-open

@@ -5,6 +5,7 @@
 #ifndef ELECTRON_SHELL_BROWSER_WEB_CONTENTS_PERMISSION_HELPER_H_
 #define ELECTRON_SHELL_BROWSER_WEB_CONTENTS_PERMISSION_HELPER_H_
 
+#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -25,12 +26,13 @@ class WebContentsPermissionHelper
       delete;
 
   enum class PermissionType {
-    POINTER_LOCK = static_cast<int>(blink::PermissionType::NUM) + 1,
-    FULLSCREEN,
+    FULLSCREEN = static_cast<int>(blink::PermissionType::NUM) + 1,
     OPEN_EXTERNAL,
     SERIAL,
     HID,
-    USB
+    USB,
+    KEYBOARD_LOCK,
+    FILE_SYSTEM
   };
 
   // Asynchronous Requests
@@ -43,6 +45,9 @@ class WebContentsPermissionHelper
       bool last_unlocked_by_target,
       base::OnceCallback<void(content::WebContents*, bool, bool, bool)>
           callback);
+  void RequestKeyboardLockPermission(
+      bool esc_key_locked,
+      base::OnceCallback<void(content::WebContents*, bool, bool)> callback);
   void RequestWebNotificationPermission(
       content::RenderFrameHost* requesting_frame,
       base::OnceCallback<void(bool)> callback);
@@ -52,7 +57,7 @@ class WebContentsPermissionHelper
                                      const GURL& url);
 
   // Synchronous Checks
-  bool CheckMediaAccessPermission(const GURL& security_origin,
+  bool CheckMediaAccessPermission(const url::Origin& security_origin,
                                   blink::mojom::MediaStreamType type) const;
   bool CheckSerialAccessPermission(const url::Origin& embedding_origin) const;
 
@@ -71,7 +76,7 @@ class WebContentsPermissionHelper
 
   // TODO(clavin): refactor to use the WebContents provided by the
   // WebContentsUserData base class instead of storing a duplicate ref
-  content::WebContents* web_contents_;
+  raw_ptr<content::WebContents> web_contents_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

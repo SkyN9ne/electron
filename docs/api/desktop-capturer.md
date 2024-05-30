@@ -8,9 +8,11 @@ Process: [Main](../glossary.md#main-process)
 The following example shows how to capture video from a desktop window whose
 title is `Electron`:
 
-```javascript
+```js
 // In the main process.
-const { desktopCapturer } = require('electron')
+const { BrowserWindow, desktopCapturer } = require('electron')
+
+const mainWindow = new BrowserWindow()
 
 desktopCapturer.getSources({ types: ['window', 'screen'] }).then(async sources => {
   for (const source of sources) {
@@ -22,7 +24,7 @@ desktopCapturer.getSources({ types: ['window', 'screen'] }).then(async sources =
 })
 ```
 
-```javascript
+```js @ts-nocheck
 // In the preload script.
 const { ipcRenderer } = require('electron')
 
@@ -66,7 +68,7 @@ To capture both audio and video from the entire desktop the constraints passed
 to [`navigator.mediaDevices.getUserMedia`][] must include `chromeMediaSource: 'desktop'`,
 for both `audio` and `video`, but should not include a `chromeMediaSourceId` constraint.
 
-```javascript
+```js
 const constraints = {
   audio: {
     mandatory: {
@@ -89,7 +91,7 @@ The `desktopCapturer` module has the following methods:
 
 * `options` Object
   * `types` string[] - An array of strings that lists the types of desktop sources
-    to be captured, available types are `screen` and `window`.
+    to be captured, available types can be `screen` and `window`.
   * `thumbnailSize` [Size](structures/size.md) (optional) - The size that the media source thumbnail
     should be scaled to. Default is `150` x `150`. Set width or height to 0 when you do not need
     the thumbnails. This will save the processing time required for capturing the content of each

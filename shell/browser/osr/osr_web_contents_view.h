@@ -8,6 +8,8 @@
 #include "shell/browser/native_window.h"
 #include "shell/browser/native_window_observer.h"
 
+#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"  // nogncheck
 #include "content/browser/web_contents/web_contents_view.h"  // nogncheck
 #include "content/public/browser/web_contents.h"
@@ -26,7 +28,7 @@ namespace electron {
 
 class OffScreenWebContentsView : public content::WebContentsView,
                                  public content::RenderViewHostDelegateView,
-                                 public NativeWindowObserver {
+                                 private NativeWindowObserver {
  public:
   OffScreenWebContentsView(bool transparent, const OnPaintCallback& callback);
   ~OffScreenWebContentsView() override;
@@ -51,6 +53,7 @@ class OffScreenWebContentsView : public content::WebContentsView,
   void RestoreFocus() override;
   void FocusThroughTabTraversal(bool reverse) override;
   content::DropData* GetDropData() const override;
+  void TransferDragSecurityInfo(WebContentsView* view) override;
   gfx::Rect GetViewBounds() const override;
   void CreateView(gfx::NativeView context) override;
   content::RenderWidgetHostViewBase* CreateViewForWidget(
@@ -64,6 +67,9 @@ class OffScreenWebContentsView : public content::WebContentsView,
   void SetOverscrollControllerEnabled(bool enabled) override;
   void OnCapturerCountChanged() override;
   void FullscreenStateChanged(bool is_fullscreen) override;
+  void UpdateWindowControlsOverlay(const gfx::Rect& bounding_rect) override;
+  content::BackForwardTransitionAnimationManager*
+  GetBackForwardTransitionAnimationManager() override;
 
 #if BUILDFLAG(IS_MAC)
   bool CloseTabAfterEventTrackingIfNeeded() override;
@@ -71,13 +77,15 @@ class OffScreenWebContentsView : public content::WebContentsView,
 
   // content::RenderViewHostDelegateView
   void StartDragging(const content::DropData& drop_data,
+                     const url::Origin& source_origin,
                      blink::DragOperationsMask allowed_ops,
                      const gfx::ImageSkia& image,
                      const gfx::Vector2d& cursor_offset,
                      const gfx::Rect& drag_obj_rect,
                      const blink::mojom::DragEventSourceInfo& event_info,
                      content::RenderWidgetHostImpl* source_rwh) override;
-  void UpdateDragCursor(ui::mojom::DragOperation operation) override;
+  void UpdateDragOperation(ui::mojom::DragOperation operation,
+                           bool document_is_handling_drag) override;
   void SetPainting(bool painting);
   bool IsPainting() const;
   void SetFrameRate(int frame_rate);
@@ -91,7 +99,7 @@ class OffScreenWebContentsView : public content::WebContentsView,
 
   OffScreenRenderWidgetHostView* GetView() const;
 
-  NativeWindow* native_window_ = nullptr;
+  raw_ptr<NativeWindow> native_window_ = nullptr;
 
   const bool transparent_;
   bool painting_ = true;
@@ -99,10 +107,10 @@ class OffScreenWebContentsView : public content::WebContentsView,
   OnPaintCallback callback_;
 
   // Weak refs.
-  content::WebContents* web_contents_ = nullptr;
+  raw_ptr<content::WebContents> web_contents_ = nullptr;
 
 #if BUILDFLAG(IS_MAC)
-  OffScreenView* offScreenView_;
+  RAW_PTR_EXCLUSION OffScreenView* offScreenView_;
 #endif
 };
 

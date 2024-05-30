@@ -8,13 +8,13 @@ import { IPC_MESSAGES } from '@electron/internal/common/ipc-messages';
 
 interface GuestInstance {
   elementInstanceId: number;
-  visibilityState?: VisibilityState;
+  visibilityState?: DocumentVisibilityState;
   embedder: Electron.WebContents;
   guest: Electron.WebContents;
 }
 
 const webViewManager = process._linkedBinding('electron_browser_web_view_manager');
-const netBinding = process._linkedBinding('electron_browser_net');
+const netBinding = process._linkedBinding('electron_common_net');
 
 const supportedWebViewEvents = Object.keys(webViewEvents);
 
@@ -96,7 +96,6 @@ const createGuest = function (embedder: Electron.WebContents, embedderFrameId: n
     return -1;
   }
 
-  // eslint-disable-next-line no-undef
   const guest = (webContents as typeof ElectronInternal.WebContents).create({
     ...webPreferences,
     type: 'webview',
@@ -141,9 +140,9 @@ const createGuest = function (embedder: Electron.WebContents, embedderFrameId: n
 
   const makeProps = (eventKey: string, args: any[]) => {
     const props: Record<string, any> = {};
-    webViewEvents[eventKey].forEach((prop, index) => {
+    for (const [index, prop] of webViewEvents[eventKey].entries()) {
       props[prop] = args[index];
-    });
+    }
     return props;
   };
 
@@ -160,6 +159,16 @@ const createGuest = function (embedder: Electron.WebContents, embedderFrameId: n
       frameId: [event.processId, event.frameId],
       channel,
       args
+    });
+  });
+
+  // Dispatch guest's frame navigation event to embedder.
+  guest.on('will-frame-navigate', function (event: Electron.WebContentsWillFrameNavigateEventParams) {
+    sendToEmbedder(IPC_MESSAGES.GUEST_VIEW_INTERNAL_DISPATCH_EVENT, 'will-frame-navigate', {
+      url: event.url,
+      isMainFrame: event.isMainFrame,
+      frameProcessId: event.frame.processId,
+      frameRoutingId: event.frame.routingId
     });
   });
 
@@ -220,7 +229,7 @@ const watchEmbedder = function (embedder: Electron.WebContents) {
   watchedEmbedders.add(embedder);
 
   // Forward embedder window visibility change events to guest
-  const onVisibilityChange = function (visibilityState: VisibilityState) {
+  const onVisibilityChange = function (visibilityState: DocumentVisibilityState) {
     for (const guestInstance of guestInstances.values()) {
       guestInstance.visibilityState = visibilityState;
       if (guestInstance.embedder === embedder) {

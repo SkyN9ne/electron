@@ -66,7 +66,7 @@ the Node.js source tree.
 2. Node headers have to be compiled for your configuration.
 
    ```powershell
-   ninja -C out\Testing third_party\electron_node:headers
+   ninja -C out\Testing electron:node_headers
    ```
 
 3. The electron.lib has to be copied as node.lib.
@@ -79,7 +79,7 @@ the Node.js source tree.
 
 #### Missing fonts
 
-[Some Windows 10 devices](https://docs.microsoft.com/en-us/typography/fonts/windows_10_font_list) do not ship with the Meiryo font installed, which may cause a font fallback test to fail. To install Meiryo:
+[Some Windows 10 devices](https://learn.microsoft.com/en-us/typography/fonts/windows_10_font_list) do not ship with the Meiryo font installed, which may cause a font fallback test to fail. To install Meiryo:
 
 1. Push the Windows key and search for _Manage optional features_.
 2. Click _Add a feature_.

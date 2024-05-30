@@ -15,15 +15,13 @@
 #include "shell/browser/event_emitter_mixin.h"
 #include "shell/common/gin_helper/promise.h"
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 class PushNotifications
     : public ElectronBrowserClient::Delegate,
       public gin::Wrappable<PushNotifications>,
       public gin_helper::EventEmitterMixin<PushNotifications>,
-      public BrowserObserver {
+      private BrowserObserver {
  public:
   static PushNotifications* Get();
   static gin::Handle<PushNotifications> Create(v8::Isolate* isolate);
@@ -57,8 +55,6 @@ class PushNotifications
 #endif
 };
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api
 
 #endif  // ELECTRON_SHELL_BROWSER_API_ELECTRON_API_PUSH_NOTIFICATIONS_H_

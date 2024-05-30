@@ -27,6 +27,7 @@
 #include "shell/common/options_switches.h"
 #include "shell/renderer/electron_render_frame_observer.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/electron_node/src/node_binding.h"
@@ -137,7 +138,7 @@ void ElectronSandboxedRendererClient::InitializeBindings(
   b.SetMethod("get", GetBinding);
   b.SetMethod("createPreloadScript", CreatePreloadScript);
 
-  gin_helper::Dictionary process = gin::Dictionary::CreateEmpty(isolate);
+  auto process = gin_helper::Dictionary::CreateEmpty(isolate);
   b.Set("process", process);
 
   ElectronBindings::BindProcess(isolate, &process, metrics_.get());
@@ -192,7 +193,7 @@ void ElectronSandboxedRendererClient::DidCreateScriptContext(
 
   util::CompileAndCall(
       isolate->GetCurrentContext(), "electron/js2c/sandbox_bundle",
-      &sandbox_preload_bundle_params, &sandbox_preload_bundle_args, nullptr);
+      &sandbox_preload_bundle_params, &sandbox_preload_bundle_args);
 
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(context);
@@ -217,13 +218,14 @@ void ElectronSandboxedRendererClient::WillReleaseScriptContext(
 void ElectronSandboxedRendererClient::EmitProcessEvent(
     content::RenderFrame* render_frame,
     const char* event_name) {
-  if (injected_frames_.find(render_frame) == injected_frames_.end())
+  if (!base::Contains(injected_frames_, render_frame))
     return;
 
-  auto* isolate = blink::MainThreadIsolate();
-  v8::HandleScope handle_scope(isolate);
-  v8::Local<v8::Context> context =
-      GetContext(render_frame->GetWebFrame(), isolate);
+  blink::WebLocalFrame* frame = render_frame->GetWebFrame();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
+  v8::HandleScope handle_scope{isolate};
+
+  v8::Local<v8::Context> context = GetContext(frame, isolate);
   gin_helper::MicrotasksScope microtasks_scope(
       isolate, context->GetMicrotaskQueue(),
       v8::MicrotasksScope::kDoNotRunMicrotasks);
